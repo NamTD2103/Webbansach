@@ -1,0 +1,202 @@
+{
+  "info": {
+    "name": "VNPay Payment Integration",
+    "description": "Complete VNPay payment API collection for testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Payment",
+      "item": [
+        {
+          "name": "1. Create Payment URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": 12345,\n  \"amount\": 500000,\n  \"userId\": 1,\n  \"email\": \"customer@example.com\",\n  \"phone\": \"0901234567\",\n  \"bankCode\": \"NCB\",\n  \"ipAddress\": \"192.168.1.1\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/payment/create-payment-url",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "payment", "create-payment-url"]
+            },
+            "description": "Create a VNPay payment URL for an order. Returns paymentUrl to redirect user to."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Return URL (Simulate)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/payment/return?vnp_Amount=50000000&vnp_BankCode=NCB&vnp_BankTranNo=VN123456&vnp_CardType=ATM&vnp_OrderInfo=Payment+for+order+12345&vnp_PayDate=20231220143045&vnp_ResponseCode=00&vnp_TMN_Code=TESTMERCHANT&vnp_TransactionNo=14270500&vnp_TxnRef=12345_1703068200000&vnp_SecureHash=dummy",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "payment", "return"],
+              "query": [
+                {
+                  "key": "vnp_Amount",
+                  "value": "50000000"
+                },
+                {
+                  "key": "vnp_BankCode",
+                  "value": "NCB"
+                },
+                {
+                  "key": "vnp_BankTranNo",
+                  "value": "VN123456"
+                },
+                {
+                  "key": "vnp_CardType",
+                  "value": "ATM"
+                },
+                {
+                  "key": "vnp_OrderInfo",
+                  "value": "Payment for order 12345"
+                },
+                {
+                  "key": "vnp_PayDate",
+                  "value": "20231220143045"
+                },
+                {
+                  "key": "vnp_ResponseCode",
+                  "value": "00"
+                },
+                {
+                  "key": "vnp_TMN_Code",
+                  "value": "TESTMERCHANT"
+                },
+                {
+                  "key": "vnp_TransactionNo",
+                  "value": "14270500"
+                },
+                {
+                  "key": "vnp_TxnRef",
+                  "value": "12345_1703068200000"
+                },
+                {
+                  "key": "vnp_SecureHash",
+                  "value": "dummy"
+                }
+              ]
+            },
+            "description": "Simulates VNPay return after payment. Note: Real VNPay will send proper secure hash."
+          },
+          "response": []
+        },
+        {
+          "name": "3. IPN Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vnp_Amount\": \"50000000\",\n  \"vnp_BankCode\": \"NCB\",\n  \"vnp_BankTranNo\": \"VN123456\",\n  \"vnp_CardType\": \"ATM\",\n  \"vnp_OrderInfo\": \"Payment for order 12345\",\n  \"vnp_PayDate\": \"20231220143045\",\n  \"vnp_ResponseCode\": \"00\",\n  \"vnp_TMN_Code\": \"TESTMERCHANT\",\n  \"vnp_TransactionNo\": \"14270500\",\n  \"vnp_TxnRef\": \"12345_1703068200000\",\n  \"vnp_SecureHash\": \"dummy_hash_for_testing\",\n  \"vnp_SecureHashType\": \"SHA512\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/payment/ipn",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "payment", "ipn"]
+            },
+            "description": "Simulates IPN webhook from VNPay. Server-to-server confirmation."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Query Payment Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"12345_1703068200000\",\n  \"transactionNo\": \"14270500\",\n  \"transactionDate\": \"20231220\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/payment/query-status",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "payment", "query-status"]
+            },
+            "description": "Query payment status from VNPay for reconciliation."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Request Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactionId\": \"12345_1703068200000\",\n  \"orderId\": 12345,\n  \"refundAmount\": 500000,\n  \"reason\": \"Customer changed mind\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/api/payment/refund",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "payment", "refund"]
+            },
+            "description": "Request a refund for a paid transaction."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Get Transaction History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:5000/api/payment/transaction-history/1?limit=10&offset=0",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["api", "payment", "transaction-history", "1"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Get all payment transactions for a user."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

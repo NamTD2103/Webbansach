@@ -16,8 +16,7 @@ router.get('/users', async (req, res) => {
         USERNAME, 
         EMAIL, 
         FULLNAME, 
-        ROLE,
-        CREATED_AT
+        ROLE
       FROM USERS
       ORDER BY USER_ID DESC
     `;
@@ -65,8 +64,7 @@ router.get('/users/:userId', async (req, res) => {
         USERNAME, 
         EMAIL, 
         FULLNAME, 
-        ROLE,
-        CREATED_AT
+        ROLE
       FROM USERS
       WHERE USER_ID = :userId
     `;
@@ -176,11 +174,9 @@ router.get('/orders', async (req, res) => {
         o.STATUS, 
         o.TOTAL_AMOUNT,
         o.ORDER_DATE,
-        COUNT(oi.ITEM_ID) as ITEM_COUNT
+        0 as ITEM_COUNT
       FROM ORDERS o
       LEFT JOIN USERS u ON o.USER_ID = u.USER_ID
-      LEFT JOIN ORDER_ITEMS oi ON o.ORDER_ID = oi.ORDER_ID
-      GROUP BY o.ORDER_ID, o.USER_ID, u.USERNAME, u.FULLNAME, o.STATUS, o.TOTAL_AMOUNT, o.ORDER_DATE
       ORDER BY o.ORDER_ID DESC
     `;
 

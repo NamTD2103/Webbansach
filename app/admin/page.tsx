@@ -10,9 +10,17 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from "recharts";
+import StatsCard from "./components/StatsCard";
+import RevenueChart from "./components/charts/RevenueChart";
+import OrderStatusChart from "./components/charts/OrderStatusChart";
+import { Package, Users, ShoppingCart, CircleDollarSign } from "lucide-react";
+import VoucherTable from "./components/VoucherTable";
+import VoucherModal from "./components/VoucherModal";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { productAPI, adminAPI, Product } from "@/lib/api";
+import Header from "./components/Header";
+import Sidebar from "./components/Sidebar";
 import ProductTable from "./components/ProductTable";
 import ProductModal from "./components/ProductModal";
 import AccountsTable from "./components/AccountsTable";
@@ -36,8 +44,8 @@ interface ToastType {
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    "products" | "accounts" | "orders"
-  >("products");
+    "dashboard" | "products" | "accounts" | "orders" | "vouchers"
+  >("dashboard");
 
   // Product states
   const [products, setProducts] = useState<Product[]>([]);
@@ -56,6 +64,13 @@ export default function AdminDashboard() {
   // Order states
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [vouchers, setVouchers] = useState<any[]>([]);
+
+const [voucherLoading, setVoucherLoading] = useState(false);
+
+const [editingVoucher, setEditingVoucher] = useState<any>(null);
+
+const [isVoucherModalOpen, setIsVoucherModalOpen] =useState(false);
 
   // Toast
   const [toast, setToast] = useState<ToastType | null>(null);
@@ -75,8 +90,10 @@ export default function AdminDashboard() {
   // Fetch functions
   useEffect(() => {
     fetchProducts();
+    fetchUsers();
+    fetchOrders();
+    fetchVouchers();
   }, []);
-
   useEffect(() => {
     if (activeTab === "accounts" && users.length === 0) {
       fetchUsers();
@@ -98,6 +115,19 @@ export default function AdminDashboard() {
       setProductsLoading(false);
     }
   };
+  const fetchVouchers = async () => {
+    try{
+        setVoucherLoading(true);
+
+        const res = await adminAPI.getAllVouchers();
+
+        setVouchers(res.data || []);
+
+    }finally{
+        setVoucherLoading(false);
+    }
+}
+
 
   const fetchUsers = async () => {
     try {
@@ -211,372 +241,436 @@ export default function AdminDashboard() {
       showToast(error.message || "Lỗi khi xóa tài khoản", "error");
     }
   };
+  // ================= Voucher =================
+
+const handleAddVoucher = () => {
+  setEditingVoucher(null);
+  setIsVoucherModalOpen(true);
+};
+
+const handleEditVoucher = (voucher: any) => {
+  setEditingVoucher(voucher);
+  setIsVoucherModalOpen(true);
+};
+
+const handleSaveVoucher = async (data: any) => {
+  try {
+    if (editingVoucher) {
+      await adminAPI.updateVoucher(editingVoucher.VOUCHER_ID, data);
+
+      showToast("Cập nhật mã giảm giá thành công", "success");
+    } else {
+      await adminAPI.createVoucher(data);
+
+      showToast("Thêm mã giảm giá thành công", "success");
+    }
+
+    setIsVoucherModalOpen(false);
+    setEditingVoucher(null);
+
+    fetchVouchers();
+  } catch (err: any) {
+    showToast(err.message || "Lỗi khi lưu", "error");
+  }
+};
+
+const handleDeleteVoucher = async (id: number) => {
+  if (!confirm("Bạn có chắc muốn xóa mã giảm giá?")) return;
+
+  try {
+    await adminAPI.deleteVoucher(id);
+
+    showToast("Xóa thành công", "success");
+
+    fetchVouchers();
+  } catch (err: any) {
+    showToast(err.message || "Lỗi khi xóa", "error");
+  }
+};
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">
-            🔧 Admin Dashboard
-          </h1>
-          <Link
-            href="/"
-            className="text-sm text-blue-600 hover:text-blue-800 underline"
-          >
-            ← Quay lại trang chủ
-          </Link>
-        </div>
-      </header>
+    <div className="min-h-screen relative overflow-hidden bg-slate-100">
+      <Sidebar activeTab={activeTab} onChange={setActiveTab} />
 
-      {/* Revenue Chart*/}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <h2 className="text-lg font-semibold mb-4">📈 Doanh thu theo ngày</h2>
-        {revenueData.length === 0 ? (
-          <p className="text-gray-500">Không có dữ liệu</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={revenueData}>
-              <CartesianGrid stroke="#eee" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip
-                formatter={(value) => `₫${Number(value ?? 0).toLocaleString()}`}
-              />
-              <Bar
-                type="monotone"
-                dataKey="total"
-                stroke="#3b82f6"
-                strokeWidth={3}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+      <div className="absolute inset-0 -z-20 pointer-events-none">
+        <div className="absolute left-0 top-0 w-[700px] h-[700px] bg-blue-500/20 blur-[180px] rounded-full" />
+        <div className="absolute right-0 bottom-0 w-[600px] h-[600px] bg-purple-500/20 blur-[180px] rounded-full" />
+        <div className="absolute left-1/2 top-1/2 w-[500px] h-[500px] bg-cyan-400/10 blur-[150px] rounded-full" />
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tabs */}
-        <div className="mb-6 flex gap-4 border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab("products")}
-            className={`px-6 py-3 font-semibold transition ${
-              activeTab === "products"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600 hover:text-gray-800"
-            }`}
-          >
-            📦 Quản lý Sản phẩm
-          </button>
-          <button
-            onClick={() => setActiveTab("accounts")}
-            className={`px-6 py-3 font-semibold transition ${
-              activeTab === "accounts"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600 hover:text-gray-800"
-            }`}
-          >
-            👥 Quản lý Khách hàng
-          </button>
-          <button
-            onClick={() => setActiveTab("orders")}
-            className={`px-6 py-3 font-semibold transition ${
-              activeTab === "orders"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600 hover:text-gray-800"
-            }`}
-          >
-            📋 Quản lý Đơn hàng
-          </button>
+      <div className="ml-72 min-h-screen">
+        <div className="px-8 pt-6">
+          <Header />
         </div>
 
-        {/* Products Tab */}
-        {activeTab === "products" && (
-          <>
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-4xl font-bold text-blue-600">
-                  {totalProducts}
-                </div>
-                <div className="text-gray-600 mt-2">Tổng số sản phẩm</div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-4xl font-bold text-green-600">
-                  {products.filter((p) => p.SOLUONGTON > 0).length}
-                </div>
-                <div className="text-gray-600 mt-2">Sản phẩm có sẵn</div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-4xl font-bold text-red-600">
-                  {products.filter((p) => p.SOLUONGTON === 0).length}
-                </div>
-                <div className="text-gray-600 mt-2">Sản phẩm hết hàng</div>
-              </div>
-            </div>
+        <main className="px-8 py-6">
+          {activeTab === "dashboard" && (
 
-            {/* Actions */}
-            <div className="mb-6">
-              <button
-                onClick={handleAddProduct}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition"
-              >
-                + Thêm sản phẩm
-              </button>
-            </div>
+<>
+    {/* KPI */}
+{/* 
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
 
-            {/* Products Table */}
-            {productsLoading ? (
-              <div className="bg-white rounded-lg shadow p-8 text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
-              </div>
-            ) : (
-              <ProductTable
-                products={products}
-                onEdit={handleEditProduct}
-                onDelete={handleDeleteProduct}
-              />
-            )}
-          </>
-        )}
+        ...
 
-        {/* Accounts Tab */}
-        {activeTab === "accounts" && (
-          <>
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-4xl font-bold text-purple-600">
-                  {users.length}
-                </div>
-                <div className="text-gray-600 mt-2">Tổng khách hàng</div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-4xl font-bold text-green-600">
-                  {users.filter((u) => u.ROLE === "USER").length}
-                </div>
-                <div className="text-gray-600 mt-2">Khách hàng thường</div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-4xl font-bold text-yellow-600">
-                  {users.filter((u) => u.ROLE === "ADMIN").length}
-                </div>
-                <div className="text-gray-600 mt-2">Quản trị viên</div>
-              </div>
-            </div>
+    </div> */}
 
-            {/* Accounts Table */}
-            {usersLoading ? (
-              <div className="bg-white rounded-lg shadow p-8 text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
-              </div>
-            ) : (
-              <AccountsTable
-                users={users}
-                loading={usersLoading}
-                onEdit={handleEditUser}
-                onDelete={handleDeleteUser}
-              />
-            )}
-          </>
-        )}
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
-        {/* Orders Tab */}
-        {activeTab === "orders" && (
-          <>
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-4xl font-bold text-blue-600">
-                  {orders.length}
-                </div>
-                <div className="text-gray-600 mt-2">Tổng đơn hàng</div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-4xl font-bold text-yellow-600">
-                  {orders.filter((o) => o.STATUS === "PENDING").length}
-                </div>
-                <div className="text-gray-600 mt-2">Chờ xử lý</div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-4xl font-bold text-orange-600">
-                  {orders.filter((o) => o.STATUS === "PROCESSING").length}
-                </div>
-                <div className="text-gray-600 mt-2">Đang xử lý</div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="text-4xl font-bold text-green-600">
-                  {orders.filter((o) => o.STATUS === "COMPLETED").length}
-                </div>
-                <div className="text-gray-600 mt-2">Hoàn thành</div>
-              </div>
-            </div>
+        <RevenueChart orders={orders} />
 
-            {/* Orders Table */}
-            {ordersLoading ? (
-              <div className="bg-white rounded-lg shadow p-8 text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
+        <OrderStatusChart orders={orders} />
+
+    </div>
+
+</>
+
+)}
+          {/* Toàn bộ Products / Accounts / Orders để ở đây */}
+
+          {/* Products Tab */}
+          {activeTab === "products" && (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+                <StatsCard
+                  title="Tổng sản phẩm"
+                  value={totalProducts}
+                  subtitle="Đồng bộ từ Oracle"
+                  icon={Package}
+                  color="bg-blue-600"
+                />
+
+                <StatsCard
+                  title="Khách hàng"
+                  value={users.length}
+                  subtitle="Tài khoản hệ thống"
+                  icon={Users}
+                  color="bg-green-600"
+                />
+
+                <StatsCard
+                  title="Đơn hàng"
+                  value={orders.length}
+                  subtitle="Tất cả đơn hàng"
+                  icon={ShoppingCart}
+                  color="bg-orange-500"
+                />
+
+                <StatsCard
+                  title="Doanh thu"
+                  value={`₫${orders
+                    .reduce((sum, item) => sum + (item.TOTAL_AMOUNT || 0), 0)
+                    .toLocaleString()}`}
+                  subtitle="Theo dữ liệu backend"
+                  icon={CircleDollarSign}
+                  color="bg-purple-600"
+                />
               </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <table className="min-w-full">
-                  <thead className="bg-gray-100 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                        Mã ĐH
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                        Khách hàng
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                        Số SP
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                        Tổng tiền
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                        Trạng thái
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                        Ngày tạo
-                      </th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                        Hành động
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.length === 0 ? (
+
+              {/* Actions */}
+              <div className="mb-6">
+                <button
+                  onClick={handleAddProduct}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition"
+                >
+                  + Thêm sản phẩm
+                </button>
+              </div>
+
+              {/* Products Table */}
+              {productsLoading ? (
+                <div className="bg-white rounded-lg shadow p-8 text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
+                </div>
+              ) : (
+                <ProductTable
+                  products={products}
+                  onEdit={handleEditProduct}
+                  onDelete={handleDeleteProduct}
+                />
+              )}
+            </>
+          )}
+
+          {/* Accounts Tab */}
+          {activeTab === "accounts" && (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="text-4xl font-bold text-purple-600">
+                    {users.length}
+                  </div>
+                  <div className="text-gray-600 mt-2">Tổng khách hàng</div>
+                </div>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="text-4xl font-bold text-green-600">
+                    {users.filter((u) => u.ROLE === "USER").length}
+                  </div>
+                  <div className="text-gray-600 mt-2">Khách hàng thường</div>
+                </div>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="text-4xl font-bold text-yellow-600">
+                    {users.filter((u) => u.ROLE === "ADMIN").length}
+                  </div>
+                  <div className="text-gray-600 mt-2">Quản trị viên</div>
+                </div>
+              </div>
+
+              {/* Accounts Table */}
+              {usersLoading ? (
+                <div className="bg-white rounded-lg shadow p-8 text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
+                </div>
+              ) : (
+                <AccountsTable
+                  users={users}
+                  loading={usersLoading}
+                  onEdit={handleEditUser}
+                  onDelete={handleDeleteUser}
+                />
+              )}
+            </>
+          )}
+
+          {/* Orders Tab */}
+          {activeTab === "orders" && (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="text-4xl font-bold text-blue-600">
+                    {orders.length}
+                  </div>
+                  <div className="text-gray-600 mt-2">Tổng đơn hàng</div>
+                </div>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="text-4xl font-bold text-yellow-600">
+                    {orders.filter((o) => o.STATUS === "PENDING").length}
+                  </div>
+                  <div className="text-gray-600 mt-2">Chờ xử lý</div>
+                </div>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="text-4xl font-bold text-orange-600">
+                    {orders.filter((o) => o.STATUS === "PROCESSING").length}
+                  </div>
+                  <div className="text-gray-600 mt-2">Đang xử lý</div>
+                </div>
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="text-4xl font-bold text-green-600">
+                    {orders.filter((o) => o.STATUS === "COMPLETED").length}
+                  </div>
+                  <div className="text-gray-600 mt-2">Hoàn thành</div>
+                </div>
+              </div>
+
+              {/* Orders Table */}
+              {ordersLoading ? (
+                <div className="bg-white rounded-lg shadow p-8 text-center">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <table className="min-w-full">
+                    <thead className="bg-gray-100 border-b border-gray-200">
                       <tr>
-                        <td
-                          colSpan={7}
-                          className="text-center py-8 text-gray-500"
-                        >
-                          Không có đơn hàng
-                        </td>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                          Mã ĐH
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                          Khách hàng
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                          Số SP
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                          Tổng tiền
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                          Trạng thái
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                          Ngày tạo
+                        </th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                          Hành động
+                        </th>
                       </tr>
-                    ) : (
-                      orders.map((order) => (
-                        <tr
-                          key={order.ORDER_ID}
-                          className="border-b border-gray-200 hover:bg-gray-50"
-                        >
-                          <td className="px-6 py-3 text-sm text-gray-900">
-                            #{order.ORDER_ID}
-                          </td>
-                          <td className="px-6 py-3 text-sm text-gray-900">
-                            {order.USERNAME}
-                          </td>
-                          <td className="px-6 py-3 text-sm text-gray-900">
-                            {order.ITEM_COUNT || 0}
-                          </td>
-                          <td className="px-6 py-3 text-sm font-semibold text-gray-900">
-                            ₫{order.TOTAL_AMOUNT?.toLocaleString() || 0}
-                          </td>
-                          <td className="px-6 py-3 text-sm">
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                order.STATUS === "COMPLETED"
-                                  ? "bg-green-100 text-green-800"
-                                  : order.STATUS === "PROCESSING"
-                                    ? "bg-orange-100 text-orange-800"
-                                    : order.STATUS === "PENDING"
-                                      ? "bg-yellow-100 text-yellow-800"
-                                      : "bg-red-100 text-red-800"
-                              }`}
-                            >
-                              {order.STATUS === "COMPLETED"
-                                ? "Hoàn thành"
-                                : order.STATUS === "PROCESSING"
-                                  ? "Đang xử lý"
-                                  : order.STATUS === "PENDING"
-                                    ? "Chờ xử lý"
-                                    : "Hủy"}
-                            </span>
-                          </td>
-                          <td className="px-6 py-3 text-sm text-gray-600">
-                            {order.ORDER_DATE
-                              ? new Date(order.ORDER_DATE).toLocaleDateString(
-                                  "vi-VN",
-                                )
-                              : "-"}
-                          </td>
-                          <td className="px-6 py-3 text-sm">
-                            <select
-                              value={order.STATUS}
-                              onChange={(e) =>
-                                adminAPI
-                                  .updateOrderStatus(
-                                    order.ORDER_ID,
-                                    e.target.value,
-                                  )
-                                  .then(() => {
-                                    showToast(
-                                      "Cập nhật trạng thái thành công",
-                                      "success",
-                                    );
-                                    fetchOrders();
-                                  })
-                                  .catch((err) =>
-                                    showToast(
-                                      err.message || "Lỗi cập nhật trạng thái",
-                                      "error",
-                                    ),
-                                  )
-                              }
-                              className="px-3 py-1 border border-gray-300 rounded text-sm"
-                            >
-                              <option value="PENDING">Chờ xử lý</option>
-                              <option value="PROCESSING">Đang xử lý</option>
-                              <option value="COMPLETED">Hoàn thành</option>
-                              <option value="CANCELLED">Hủy</option>
-                            </select>
+                    </thead>
+                    <tbody>
+                      {orders.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={7}
+                            className="text-center py-8 text-gray-500"
+                          >
+                            Không có đơn hàng
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
+                      ) : (
+                        orders.map((order) => (
+                          <tr
+                            key={order.ORDER_ID}
+                            className="border-b border-gray-200 hover:bg-gray-50"
+                          >
+                            <td className="px-6 py-3 text-sm text-gray-900">
+                              #{order.ORDER_ID}
+                            </td>
+                            <td className="px-6 py-3 text-sm text-gray-900">
+                              {order.USERNAME}
+                            </td>
+                            <td className="px-6 py-3 text-sm text-gray-900">
+                              {order.ITEM_COUNT || 0}
+                            </td>
+                            <td className="px-6 py-3 text-sm font-semibold text-gray-900">
+                              ₫{order.TOTAL_AMOUNT?.toLocaleString() || 0}
+                            </td>
+                            <td className="px-6 py-3 text-sm">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  order.STATUS === "COMPLETED"
+                                    ? "bg-green-100 text-green-800"
+                                    : order.STATUS === "PROCESSING"
+                                      ? "bg-orange-100 text-orange-800"
+                                      : order.STATUS === "PENDING"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : "bg-red-100 text-red-800"
+                                }`}
+                              >
+                                {order.STATUS === "COMPLETED"
+                                  ? "Hoàn thành"
+                                  : order.STATUS === "PROCESSING"
+                                    ? "Đang xử lý"
+                                    : order.STATUS === "PENDING"
+                                      ? "Chờ xử lý"
+                                      : "Hủy"}
+                              </span>
+                            </td>
+                            <td className="px-6 py-3 text-sm text-gray-600">
+                              {order.ORDER_DATE
+                                ? new Date(order.ORDER_DATE).toLocaleDateString(
+                                    "vi-VN",
+                                  )
+                                : "-"}
+                            </td>
+                            <td className="px-6 py-3 text-sm">
+                              <select
+                                value={order.STATUS}
+                                onChange={(e) =>
+                                  adminAPI
+                                    .updateOrderStatus(
+                                      order.ORDER_ID,
+                                      e.target.value,
+                                    )
+                                    .then(() => {
+                                      showToast(
+                                        "Cập nhật trạng thái thành công",
+                                        "success",
+                                      );
+                                      fetchOrders();
+                                    })
+                                    .catch((err) =>
+                                      showToast(
+                                        err.message ||
+                                          "Lỗi cập nhật trạng thái",
+                                        "error",
+                                      ),
+                                    )
+                                }
+                                className="px-3 py-1 border border-gray-300 rounded text-sm"
+                              >
+                                <option value="PENDING">Chờ xử lý</option>
+                                <option value="PROCESSING">Đang xử lý</option>
+                                <option value="COMPLETED">Hoàn thành</option>
+                                <option value="CANCELLED">Hủy</option>
+                              </select>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+          {activeTab === "vouchers" && (
+  <>
+    <div className="flex justify-between items-center mb-6">
+      <h2 className="text-2xl font-bold">
+        Quản lý mã giảm giá
+      </h2>
+
+      <button
+        onClick={handleAddVoucher}
+        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg"
+      >
+        + Thêm mã
+      </button>
+    </div>
+
+    {voucherLoading ? (
+      <div className="bg-white rounded-lg shadow p-8 text-center">
+        Đang tải...
+      </div>
+    ) : (
+      <VoucherTable
+        vouchers={vouchers}
+        onEdit={handleEditVoucher}
+        onDelete={handleDeleteVoucher}
+      />
+    )}
+  </>
+)}
+        </main>
+
+        {/* Modals */}
+        {isProductModalOpen && (
+          <ProductModal
+            product={editingProduct}
+            onSave={handleSaveProduct}
+            onClose={() => {
+              setIsProductModalOpen(false);
+              setEditingProduct(null);
+            }}
+          />
         )}
-      </main>
+        {isAccountModalOpen && editingUser && (
+          <AccountModal
+            isOpen={isAccountModalOpen}
+            user={editingUser}
+            onClose={() => {
+              setIsAccountModalOpen(false);
+              setEditingUser(null);
+            }}
+            onSave={handleSaveUser}
+            loading={accountModalLoading}
+          />
+        )}
+        {isVoucherModalOpen && (
+  <VoucherModal
+    voucher={editingVoucher}
+    onSave={handleSaveVoucher}
+    onClose={() => {
+      setEditingVoucher(null);
+      setIsVoucherModalOpen(false);
+    }}
+  />
+)}
 
-      {/* Modals */}
-      {isProductModalOpen && (
-        <ProductModal
-          product={editingProduct}
-          onSave={handleSaveProduct}
-          onClose={() => {
-            setIsProductModalOpen(false);
-            setEditingProduct(null);
-          }}
-        />
-      )}
-      {isAccountModalOpen && editingUser && (
-        <AccountModal
-          isOpen={isAccountModalOpen}
-          user={editingUser}
-          onClose={() => {
-            setIsAccountModalOpen(false);
-            setEditingUser(null);
-          }}
-          onSave={handleSaveUser}
-          loading={accountModalLoading}
-        />
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+        {/* Toast */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
+      </div>
     </div>
   );
 }

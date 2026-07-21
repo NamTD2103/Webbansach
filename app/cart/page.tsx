@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { cartAPI, orderAPI, authAPI, CartItem } from '@/lib/api';
 import Footer from '@/components/Footer';
+import { getGuestCart, removeGuestCartItem, saveGuestCart, updateGuestCartItem } from '@/lib/userExperience';
 
 function CartSkeleton() {
   return (
@@ -27,12 +28,15 @@ export default function Cart() {
   const [error, setError] = useState<string | null>(null);
   const [checkingOut, setCheckingOut] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [guestCart, setGuestCart] = useState<any[]>([]);
 
   useEffect(() => {
-    // Check if user is logged in
     const currentUser = authAPI.getCurrentUser();
     if (!currentUser) {
-      router.push('/login');
+      setUser(null);
+      setGuestCart(getGuestCart());
+      setCartItems(getGuestCart() as CartItem[]);
+      setLoading(false);
       return;
     }
 
@@ -56,8 +60,13 @@ export default function Cart() {
   };
 
   const handleRemoveItem = async (masp: string) => {
-    if (!user) return;
-    
+    if (!user) {
+      const next = removeGuestCartItem(masp);
+      setCartItems(next as CartItem[]);
+      setGuestCart(next);
+      return;
+    }
+
     try {
       console.log('[CART] Removing item:', masp);
       await cartAPI.removeFromCart(user.userId, masp);
@@ -65,6 +74,15 @@ export default function Cart() {
     } catch (err) {
       console.error('[CART ERROR]', err);
       alert('Failed to remove item');
+    }
+  };
+
+  const handleQuantityChange = (masp: string, nextQuantity: number) => {
+    if (!user) {
+      const next = updateGuestCartItem(masp, nextQuantity);
+      setCartItems(next as CartItem[]);
+      setGuestCart(next);
+      return;
     }
   };
 
@@ -78,16 +96,6 @@ export default function Cart() {
   router.push('/checkout');
 };
   const totalAmount = cartItems.reduce((sum, item) => sum + (item.TOTAL_PRICE || 0), 0);
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg mb-4">Redirecting to login...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -188,18 +196,15 @@ export default function Cart() {
                     {/* Quantity */}
                     <div className="flex flex-col items-end justify-between">
                       <div className="text-right">
-                        <p className="text-gray-600 text-sm">Qty: {item.SOLUONG}</p>
-                        <p className="font-bold text-lg">
-                          ₫{item.TOTAL_PRICE?.toLocaleString('vi-VN') || '0'}
-                        </p>
+                        <div className="flex items-center gap-2 mb-2">
+                          <button onClick={() => handleQuantityChange(item.MASP, (item.SOLUONG || 1) - 1)} className="w-8 h-8 rounded-full border border-gray-300">−</button>
+                          <span className="min-w-8 text-center font-semibold">{item.SOLUONG}</span>
+                          <button onClick={() => handleQuantityChange(item.MASP, (item.SOLUONG || 1) + 1)} className="w-8 h-8 rounded-full border border-gray-300">+</button>
+                        </div>
+                        <p className="font-bold text-lg">₫{item.TOTAL_PRICE?.toLocaleString('vi-VN') || '0'}</p>
                       </div>
 
-                      <button
-                        onClick={() => handleRemoveItem(item.MASP)}
-                        className="text-red-500 hover:text-red-700 text-sm font-semibold"
-                      >
-                        Xóa
-                      </button>
+                      <button onClick={() => handleRemoveItem(item.MASP)} className="text-red-500 hover:text-red-700 text-sm font-semibold">Xóa</button>
                     </div>
                   </div>
                 ))}

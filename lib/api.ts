@@ -259,15 +259,26 @@ export const orderAPI = {
     return await response.json();
   },
 
-  async getOrder(orderId: number) {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/order/${orderId}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
+ async getOrderDetail(orderId: number) {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/order/${orderId}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
 
-    if (!response.ok) throw new Error('Order not found');
-    return await response.json();
-  },
+  if (!response.ok) {
+    const error = await response
+      .json()
+      .catch(() => ({ message: "Không lấy được chi tiết đơn hàng" }));
+    throw new Error(error.message);
+  }
+
+  return await response.json();
+},
 
   async getUserOrders(userId: number, page: number = 1, limit: number = 10) {
     const response = await fetchWithTimeout(
@@ -278,6 +289,116 @@ export const orderAPI = {
     if (!response.ok) throw new Error('Failed to fetch orders');
     return await response.json();
   },
+
+  async cancelOrder(orderId: number, reason = "") {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/order/${orderId}/cancel`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reason }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response
+      .json()
+      .catch(() => ({ message: "Không thể hủy đơn" }));
+
+    throw new Error(error.message);
+  }
+
+  return await response.json();
+},
+async reorder(orderId: number) {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/order/${orderId}/reorder`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Không thể mua lại");
+  }
+
+  return await response.json();
+},
+
+async reviewProduct(data:{
+    orderId:number;
+    masp:string;
+    rating:number;
+    comment:string;
+}){
+
+const response=await fetchWithTimeout(
+`${API_BASE_URL}/review`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify(data)
+}
+);
+
+if(!response.ok){
+throw new Error("Đánh giá thất bại");
+}
+
+return await response.json();
+
+},
+async trackOrder(orderId:number){
+
+const response=await fetchWithTimeout(
+`${API_BASE_URL}/order/${orderId}/tracking`
+);
+
+if(!response.ok){
+throw new Error("Không lấy được trạng thái");
+}
+
+return await response.json();
+
+},
+async downloadInvoice(orderId:number){
+
+const response = await fetchWithTimeout(
+  `${API_BASE_URL}/order/${orderId}/invoice`,
+  {
+    method: "GET",
+  }
+);
+
+if(!response.ok){
+throw new Error("Invoice not found");
+}
+
+return response.blob();
+
+},async repay(orderId:number){
+
+const response=await fetchWithTimeout(
+`${API_BASE_URL}/order/${orderId}/pay`,
+{
+method:"POST"
+}
+);
+
+if(!response.ok){
+throw new Error("Thanh toán thất bại");
+}
+
+return await response.json();
+
+}
 };
 
 export const authAPI = {
@@ -468,7 +589,118 @@ export const adminAPI = {
 
     return await response.json();
   },
+  // ================= Voucher =================
+
+async getAllVouchers() {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/admin/vouchers`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response
+      .json()
+      .catch(() => ({ message: "Failed to fetch vouchers" }));
+
+    throw new Error(error.message || "Failed to fetch vouchers");
+  }
+
+  return await response.json();
+},
+
+async getVoucher(id: number) {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/admin/vouchers/${id}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Không lấy được voucher");
+  }
+
+  return await response.json();
+},
+
+async createVoucher(data: any) {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/admin/vouchers`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response
+      .json()
+      .catch(() => ({ message: "Create failed" }));
+
+    throw new Error(error.message);
+  }
+
+  return await response.json();
+},
+
+async updateVoucher(id: number, data: any) {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/admin/vouchers/${id}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response
+      .json()
+      .catch(() => ({ message: "Update failed" }));
+
+    throw new Error(error.message);
+  }
+
+  return await response.json();
+},
+
+async deleteVoucher(id: number) {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/admin/vouchers/${id}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response
+      .json()
+      .catch(() => ({ message: "Delete failed" }));
+
+    throw new Error(error.message);
+  }
+
+  return await response.json();
+},
 };
+
+
 
 export const categoryAPI = {
   async getAll() {

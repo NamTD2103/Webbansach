@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { productAPI, cartAPI, Product, authAPI } from '@/lib/api';
+import { addGuestCartItem, toggleWishlistItem, isWishlisted } from '@/lib/userExperience';
 
 function ProductSkeleton() {
   return (
@@ -29,6 +30,7 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1);
   const [addingCart, setAddingCart] = useState(false);
   const [cartSuccess, setCartSuccess] = useState(false);
+  const [favorite, setFavorite] = useState(false);
 
   useEffect(() => {
     if (productId) fetchProduct();
@@ -42,6 +44,7 @@ export default function ProductDetail() {
 
       const response = await productAPI.getById(productId);
       setProduct(response.data || null);
+      setFavorite(isWishlisted(productId));
     } catch (err: any) {
       console.error('[PRODUCT DETAIL ERROR]', err);
       setError(err.message || 'Failed to load product');
@@ -53,22 +56,20 @@ export default function ProductDetail() {
 
   const handleAddToCart = async () => {
     try {
-      const user = authAPI.getCurrentUser();
-      if (!user) {
-        alert('Please login first!');
-        router.push('/login');
-        return;
-      }
-
       if (!product || product.SOLUONGTON === 0) return;
 
       if (quantity > product.SOLUONGTON) {
-        alert(`Only ${product.SOLUONGTON} available!`);
+        alert(`Chỉ còn ${product.SOLUONGTON} sản phẩm!`);
         return;
       }
 
       setAddingCart(true);
-      await cartAPI.addToCart(user.userId, product.MASP, quantity);
+      const user = authAPI.getCurrentUser();
+      if (!user) {
+        addGuestCartItem(product, quantity);
+      } else {
+        await cartAPI.addToCart(user.userId, product.MASP, quantity);
+      }
 
       setCartSuccess(true);
       setTimeout(() => setCartSuccess(false), 2000);
@@ -78,6 +79,12 @@ export default function ProductDetail() {
     } finally {
       setAddingCart(false);
     }
+  };
+
+  const handleWishlistToggle = () => {
+    if (!product) return;
+    const result = toggleWishlistItem(product);
+    setFavorite(result.isFavorite);
   };
 
   if (loading) {
@@ -197,7 +204,7 @@ export default function ProductDetail() {
             </div>
 
             <div className="p-6 bg-blue-50 rounded-2xl border">
-              <h3 className="font-semibold text-lg mb-3">📝 Description</h3>
+              <h3 className="font-semibold text-lg mb-3">📝 Mô tả</h3>
               <p className="text-gray-700 leading-relaxed">
                 {product.DESCRIPTION || 'No description available.'}
               </p>
@@ -252,21 +259,25 @@ export default function ProductDetail() {
               </div>
             </div>
 
-            {/* Add to Cart Button */}
-            <button
-              onClick={handleAddToCart}
-              disabled={addingCart || product.SOLUONGTON === 0 || quantity === 0}
-              className="w-full h-16 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xl font-bold rounded-2xl shadow-2xl hover:from-orange-600 hover:to-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-300 transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            >
-              {addingCart ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Adding...
-                </span>
-              ) : (
-                '🛒 Add to Cart'
-              )}
-            </button>
+            <div className="flex gap-3">
+              <button onClick={handleWishlistToggle} className="h-16 px-5 rounded-2xl border border-gray-200 text-xl hover:bg-gray-50">
+                {favorite ? '❤️' : '🤍'}
+              </button>
+              <button
+                onClick={handleAddToCart}
+                disabled={addingCart || product.SOLUONGTON === 0 || quantity === 0}
+                className="flex-1 h-16 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xl font-bold rounded-2xl shadow-2xl hover:from-orange-600 hover:to-orange-700 focus:outline-none focus:ring-4 focus:ring-orange-300 transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                {addingCart ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Đang thêm...
+                  </span>
+                ) : (
+                  '🛒 Thêm vào giỏ'
+                )}
+              </button>
+            </div>
 
             {cartSuccess && (
               <div className="p-4 bg-green-100 border-2 border-green-400 rounded-2xl text-green-800 font-semibold flex items-center justify-center gap-2 animate-pulse">

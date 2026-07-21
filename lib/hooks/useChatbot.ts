@@ -55,7 +55,6 @@ export const useChatbot = (userId?: number | string) => {
 
       setError(null);
 
-      // Add user message to UI immediately
       const userMessage: Message = {
         type: 'user',
         content: message,
@@ -71,60 +70,58 @@ export const useChatbot = (userId?: number | string) => {
       try {
         const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
         const pagePath = typeof window !== 'undefined' ? window.location.pathname : '';
+
         const response = await fetch(`${apiBaseUrl}/chatbot/message`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-body: JSON.stringify({
+          body: JSON.stringify({
             userId,
             message,
             conversationId: conversation.id,
             sessionToken: localStorage.getItem('chatbot_session') || undefined,
-            contextData: {
-              deviceType: typeof window !== 'undefined' && window.innerWidth < 768 ? 'MOBILE' : 'DESKTOP',
-              entryPoint: pagePath.includes('/product/')
-                ? 'PRODUCT_PAGE'
-                : pagePath.includes('/checkout')
-                ? 'CHECKOUT'
-                : pagePath.includes('/cart')
-                ? 'CART_PAGE'
-                : 'HOMEPAGE',
-              interactionPhase: pagePath.includes('/checkout') ? 'DECISION'
-                : pagePath.includes('/product/') ? 'CONSIDERATION'
-                : pagePath.includes('/cart') ? 'DECISION'
-                : 'DISCOVERY',
-              userUrgency: /nhanh|gấp|cấp|vội|ngay|asap/i.test(message) ? 'HIGH' : 'MEDIUM',
-              pageContext: pagePath,
-            },
           }),
+
         });
 
         if (!response.ok) {
           throw new Error(`API error: ${response.statusText}`);
         }
 
-        const data = await response.json();
+        const data: unknown = await response.json();
+        const d = data as {
+          success?: boolean;
+          data?: {
+            conversationId?: string | number;
+            botMessageId?: string | number;
+            response?: string;
+            intent?: string;
+            confidence?: number;
+          };
+          error?: string;
+        };
 
-        if (data.success) {
-          // Update conversation ID if new
-          if (!conversation.id && data.data.conversationId) {
+        if (d.success && d.data) {
+          if (!conversation.id && d.data.conversationId !== undefined) {
             setConversation((prev) => ({
               ...prev,
-              id: data.data.conversationId,
+              id: String(d.data!.conversationId),
             }));
-
-            // Save session token
-            localStorage.setItem('chatbot_session', data.data.sessionToken || '');
+            // enhanced backend may return sessionToken; we store it if present
+            // (kept as optional to avoid typing issues)
+            const sessionToken = (d.data as unknown as { sessionToken?: string | number }).sessionToken;
+            if (typeof sessionToken !== 'undefined') {
+              localStorage.setItem('chatbot_session', String(sessionToken || ''));
+            }
           }
 
-          // Add bot message
           const botMessage: Message = {
-            id: data.data.botMessageId?.toString(),
+            id: d.data.botMessageId !== undefined ? String(d.data.botMessageId) : undefined,
             type: 'bot',
-            content: data.data.response,
-            intent: data.data.intent,
-            confidence: data.data.confidence,
+            content: d.data.response || '',
+            intent: d.data.intent,
+            confidence: d.data.confidence,
             timestamp: new Date().toISOString(),
           };
 
@@ -134,7 +131,7 @@ body: JSON.stringify({
             isLoading: false,
           }));
         } else {
-          throw new Error(data.error || 'Failed to get response');
+          throw new Error((d as { error?: string }).error || 'Failed to get response');
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -171,7 +168,6 @@ body: JSON.stringify({
           throw new Error('Failed to send feedback');
         }
 
-        // Update message in state
         setConversation((prev) => ({
           ...prev,
           messages: prev.messages.map((msg) =>
@@ -191,41 +187,49 @@ body: JSON.stringify({
   /**
    * Load conversation history
    */
-  const loadHistory = useCallback(
-    async (conversationId: string) => {
-      try {
-        const response = await fetch(`/api/chatbot/messages/${conversationId}`);
-
-        if (!response.ok) {
-          throw new Error('Failed to load history');
-        }
-
-        const data = await response.json();
-
-        if (data.success) {
-          const messages: Message[] = data.data.map((msg: any) => ({
-            id: msg.MESSAGE_ID?.toString(),
-            type: msg.MESSAGE_TYPE,
-            content: msg.CONTENT,
-            intent: msg.INTENT,
-            confidence: msg.CONFIDENCE_SCORE,
-            timestamp: msg.CREATED_AT,
-            helpful: msg.IS_HELPFUL,
-          }));
-
-          setConversation((prev) => ({
-            ...prev,
-            id: conversationId,
-            messages,
-          }));
-        }
-      } catch (err) {
-        console.error('Error loading history:', err);
-        setError('Failed to load conversation history');
+  const loadHistory = useCallback(async (conversationId: string) => {
+    try {
+      const response = await fetch(`/api/chatbot/messages/${conversationId}`);
+      if (!response.ok) {
+        throw new Error('Failed to load history');
       }
-    },
-    [],
-  );
+
+      const data: unknown = await response.json();
+      const d = data as {
+        success?: boolean;
+        data?: Array<Record<string, unknown>>;
+      };
+
+      if (d.success && Array.isArray(d.data)) {
+        const messages: Message[] = d.data.map((msg) => {
+          const m = msg as Record<string, unknown>;
+          const rawType = m.MESSAGE_TYPE;
+          return {
+            id:
+              typeof m.MESSAGE_ID === 'string' || typeof m.MESSAGE_ID === 'number'
+                ? String(m.MESSAGE_ID)
+                : undefined,
+            type:
+              rawType === 'user' || rawType === 'bot' ? (rawType as Message['type']) : 'bot',
+            content: typeof m.CONTENT === 'string' ? m.CONTENT : '',
+            intent: typeof m.INTENT === 'string' ? m.INTENT : undefined,
+            confidence: typeof m.CONFIDENCE_SCORE === 'number' ? m.CONFIDENCE_SCORE : undefined,
+            timestamp: typeof m.CREATED_AT === 'string' ? m.CREATED_AT : undefined,
+            helpful: typeof m.IS_HELPFUL === 'number' ? m.IS_HELPFUL : undefined,
+          };
+        });
+
+        setConversation((prev) => ({
+          ...prev,
+          id: conversationId,
+          messages,
+        }));
+      }
+    } catch (err) {
+      console.error('Error loading history:', err);
+      setError('Failed to load conversation history');
+    }
+  }, []);
 
   /**
    * Clear conversation
@@ -258,3 +262,4 @@ body: JSON.stringify({
     toggleChatbot,
   };
 };
+

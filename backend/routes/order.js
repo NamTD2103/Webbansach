@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { executeQuery, executeUpdate, getConnection } = require('../config/db');
 const oracledb = require('oracledb');
+const PDFDocument=require("pdfkit");
 
 /**
  * POST /api/order/create
@@ -334,5 +335,162 @@ router.get('/user/:userId', async (req, res) => {
     });
   }
 });
+/************************************************
+ * PUT /api/order/:id/cancel
+ ************************************************/
+router.put("/:orderId/cancel", async (req, res) => {
+  try {
+    const { orderId } = req.params;
 
+    const order = await executeQuery(
+      `SELECT STATUS
+       FROM ORDERS
+       WHERE ORDER_ID=:id`,
+      { id: orderId }
+    );
+
+    if (order.rows.length === 0) {
+      return res.status(404).json({
+        success:false,
+        message:"Order not found"
+      });
+    }
+
+    if (order.rows[0].STATUS !== "PENDING") {
+      return res.status(400).json({
+        success:false,
+        message:"Không thể hủy đơn"
+      });
+    }
+
+    await executeUpdate(
+      `UPDATE ORDERS
+       SET STATUS='CANCELLED'
+       WHERE ORDER_ID=:id`,
+      { id: orderId }
+    );
+
+    res.json({
+      success:true,
+      message:"Đã hủy đơn hàng"
+    });
+
+  } catch(err){
+
+    res.status(500).json({
+      success:false,
+      message:err.message
+    });
+
+  }
+});
+router.post("/:orderId/reorder",async(req,res)=>{
+
+try{
+
+const {orderId}=req.params;
+
+const orderItems=await executeQuery(
+
+`SELECT MASP,SOLUONG
+FROM ORDER_ITEMS
+WHERE ORDER_ID=:id`,
+
+{id:orderId}
+
+);
+
+if(orderItems.rows.length===0){
+
+return res.status(404).json({
+success:false
+});
+
+}
+
+res.json({
+
+success:true,
+items:orderItems.rows
+
+});
+
+}catch(err){
+
+res.status(500).json({
+success:false,
+message:err.message
+});
+
+}
+
+});
+ router.get("/:orderId/tracking",async(req,res)=>{
+
+const {orderId}=req.params;
+
+const result=await executeQuery(
+
+`SELECT
+STATUS,
+ORDER_DATE
+FROM ORDERS
+WHERE ORDER_ID=:id`,
+
+{id:orderId}
+
+);
+
+res.json({
+
+success:true,
+data:result.rows[0]
+
+});
+
+});
+router.post("/:orderId/pay",async(req,res)=>{
+
+const {orderId}=req.params;
+
+await executeUpdate(
+
+`UPDATE ORDERS
+SET STATUS='PAID'
+WHERE ORDER_ID=:id
+AND STATUS='PENDING'`,
+
+{id:orderId}
+
+);
+
+res.json({
+
+success:true
+
+});
+
+});
+router.get("/:orderId/invoice",async(req,res)=>{
+
+const doc=new PDFDocument();
+
+res.setHeader(
+"Content-Type",
+"application/pdf"
+);
+
+doc.pipe(res);
+
+doc.fontSize(20).text("BOOK STORE");
+
+doc.moveDown();
+
+doc.text("Invoice");
+
+doc.text("Order ID : "+req.params.orderId);
+
+doc.end();
+
+});
 module.exports = router;

@@ -63,7 +63,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50">
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-amber-100">
       {/* Header */}
       <header className="bg-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-4">
@@ -74,14 +74,14 @@ export default function Login() {
       </header>
 
       <main className="max-w-md mx-auto px-4 py-16">
-        <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-white/80">
           {/* Tabs */}
           <div className="flex border-b">
             <button
               onClick={() => setIsLogin(true)}
               className={`flex-1 py-4 font-semibold text-center transition ${
                 isLogin
-                  ? 'bg-red-500 text-white'
+                  ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -91,7 +91,7 @@ export default function Login() {
               onClick={() => setIsLogin(false)}
               className={`flex-1 py-4 font-semibold text-center transition ${
                 !isLogin
-                  ? 'bg-red-500 text-white'
+                  ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
@@ -204,7 +204,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition disabled:bg-gray-400 text-lg"
+              className="w-full py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold rounded-xl hover:from-red-600 hover:to-orange-600 transition disabled:bg-gray-400 text-lg shadow-lg"
             >
               {loading ? '⏳ Processing...' : isLogin ? 'Login' : 'Register'}
             </button>

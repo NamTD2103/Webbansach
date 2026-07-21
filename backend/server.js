@@ -16,7 +16,8 @@ const orderInvoiceRoutes = require('./routes/order-invoice');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const paymentRoutes = require('./routes/payment');
-const chatbotRoutes = require('./routes/chatbot-enhanced');
+const chatbotRoutes = require('./routes/chatbot');
+
 const recommendationRoutes = require('./routes/recommendations');
 const profileRoutes = require('./routes/profile');
 

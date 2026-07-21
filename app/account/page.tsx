@@ -1,11 +1,17 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { authAPI, orderAPI } from '@/lib/api';
-import Footer from '@/components/Footer';
-
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { authAPI, orderAPI } from "@/lib/api";
+import Footer from "@/components/Footer";
+import { getWishlistItems } from "@/lib/userExperience";
+import AccountHero from "@/components/account/AccountHero";
+import AccountStats from "@/components/account/AccountStats";
+import Sidebar from "@/components/account/Sidebar";
+import OrderList from "@/components/account/OrderList";
+import EditProfileModal from "@/components/account/EditProfileModal";
+import ReviewModal from "@/components/orders/ReviewModal";
 // ================= TYPES =================
 interface UserProfile {
   userId: number;
@@ -43,14 +49,26 @@ export default function Account() {
   const [loading, setLoading] = useState(true);
 
   const [orders, setOrders] = useState<Order[]>([]);
+
+  const [showReviewModal, setShowReviewModal] = useState(false);
+
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  
+
+  const [cancelLoading, setCancelLoading] = useState(false);
+
+  const [reorderLoading, setReorderLoading] = useState(false);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+
 
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editData, setEditData] = useState({ email: '', fullname: '' });
+  const [editData, setEditData] = useState({ email: "", fullname: "" });
   const [editing, setEditing] = useState(false);
 
   const [toast, setToast] = useState<{
-    type: 'success' | 'error';
+    type: "success" | "error";
     message: string;
   } | null>(null);
 
@@ -59,21 +77,22 @@ export default function Account() {
     const currentUser = authAPI.getCurrentUser();
 
     if (!currentUser) {
-      router.push('/login');
+      router.push("/login");
       return;
     }
 
     const normalized = normalizeUser(currentUser);
 
     if (!normalized.userId) {
-      router.push('/login');
+      router.push("/login");
       return;
     }
 
     setUser(normalized);
+    setWishlistItems(getWishlistItems());
     setEditData({
-      email: normalized.email || '',
-      fullname: normalized.fullname || '',
+      email: normalized.email || "",
+      fullname: normalized.fullname || "",
     });
 
     fetchOrders(normalized.userId);
@@ -87,15 +106,102 @@ export default function Account() {
       const result = await orderAPI.getUserOrders(userId, 1, 20);
       setOrders(result?.data || []);
     } catch (err) {
-      console.error('[Orders Error]', err);
+      console.error("[Orders Error]", err);
       setOrders([]);
     } finally {
       setOrdersLoading(false);
     }
   }, []);
+  const handleDetail = async (order: Order) => {
+    try {
+      const result = await orderAPI.getOrderDetail(order.ORDER_ID);
+
+      setSelectedOrder(result.data);
+
+      setShowOrderModal(true);
+    } catch (err) {
+      console.error(err);
+      showToast("error", "Không tải được chi tiết đơn hàng");
+    }
+  };
+  const handleCancel = async (order: Order) => {
+    if (!confirm("Bạn có chắc muốn hủy đơn hàng này?")) return;
+
+    try {
+      setCancelLoading(true);
+
+      await orderAPI.cancelOrder(order.ORDER_ID);
+
+      showToast("success", "Hủy đơn thành công");
+
+      if (user) {
+        fetchOrders(user.userId);
+      }
+    } catch (err: any) {
+      showToast("error", err.message || "Không thể hủy đơn");
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+  const handleReorder = async (order: Order) => {
+    try {
+      setReorderLoading(true);
+
+      await orderAPI.reorder(order.ORDER_ID);
+
+      showToast("success", "Đã thêm sản phẩm vào giỏ hàng");
+    } catch (err: any) {
+      showToast("error", err.message || "Không thể mua lại");
+    } finally {
+      setReorderLoading(false);
+    }
+  };
+  const handleRepay = async (order: Order) => {
+    try {
+      await orderAPI.repay(order.ORDER_ID);
+
+      showToast("success", "Đang chuyển sang thanh toán");
+    } catch (err: any) {
+      showToast("error", err.message || "Không thể thanh toán");
+    }
+  };
+  const handleInvoice = async (order: Order) => {
+    try {
+      const blob = await orderAPI.downloadInvoice(order.ORDER_ID);
+
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+
+      a.href = url;
+
+      a.download = `Invoice_${order.ORDER_ID}.pdf`;
+
+      a.click();
+
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+
+      showToast("error", "Không tải được hóa đơn");
+    }
+  };
+const handleReview = async (order: Order) => {
+  try {
+    const result = await orderAPI.getOrderDetail(order.ORDER_ID);
+
+    setSelectedOrder(result.data);
+
+    setShowReviewModal(true);
+
+  } catch (err) {
+    console.error(err);
+    showToast("error", "Không tải được sản phẩm");
+  }
+};
 
   // ===== TOAST =====
-  const showToast = (type: 'success' | 'error', message: string) => {
+  const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3000);
   };
@@ -105,11 +211,11 @@ export default function Account() {
     if (!user) return;
 
     if (!editData.email && !editData.fullname) {
-      return showToast('error', 'Vui lòng nhập dữ liệu');
+      return showToast("error", "Vui lòng nhập dữ liệu");
     }
 
     if (editData.email && !isValidEmail(editData.email)) {
-      return showToast('error', 'Email không hợp lệ');
+      return showToast("error", "Email không hợp lệ");
     }
 
     try {
@@ -128,14 +234,14 @@ export default function Account() {
               email: result?.data?.EMAIL || payload.email,
               fullname: result?.data?.FULLNAME || payload.fullname,
             }
-          : prev
+          : prev,
       );
 
       setShowEditModal(false);
-      showToast('success', 'Cập nhật thành công');
+      showToast("success", "Cập nhật thành công");
     } catch (err: any) {
       console.error(err);
-      showToast('error', err.message || 'Lỗi cập nhật');
+      showToast("error", err.message || "Lỗi cập nhật");
     } finally {
       setEditing(false);
     }
@@ -143,31 +249,30 @@ export default function Account() {
 
   // ===== LOGOUT =====
   const handleLogout = () => {
-    if (!confirm('Đăng xuất?')) return;
+    if (!confirm("Đăng xuất?")) return;
     authAPI.logout();
-    router.push('/');
+    router.push("/");
   };
 
   // ===== FORMAT =====
   const formatPrice = (p: number) =>
-    new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
+    new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
     }).format(p);
 
-  const formatDate = (d: string) =>
-    new Date(d).toLocaleString('vi-VN');
+  const formatDate = (d: string) => new Date(d).toLocaleString("vi-VN");
 
   const getStatusBadge = (status: string) => {
     const map: any = {
-      PENDING: 'bg-yellow-100',
-      PROCESSING: 'bg-blue-100',
-      SHIPPED: 'bg-purple-100',
-      DELIVERED: 'bg-green-100',
-      CANCELLED: 'bg-red-100',
+      PENDING: "bg-yellow-100",
+      PROCESSING: "bg-blue-100",
+      SHIPPED: "bg-purple-100",
+      DELIVERED: "bg-green-100",
+      CANCELLED: "bg-red-100",
     };
     return (
-      <span className={`${map[status] || 'bg-gray-100'} px-3 py-1 rounded`}>
+      <span className={`${map[status] || "bg-gray-100"} px-3 py-1 rounded`}>
         {status}
       </span>
     );
@@ -188,90 +293,79 @@ export default function Account() {
 
   // ================= UI =================
   return (
-    <div className="min-h-screen bg-gray-50">
-
-      {/* HEADER */}
-      <header className="bg-white shadow p-4 flex justify-between">
-        <Link href="/">Home</Link>
-        <div className="flex gap-4">
-          <Link href="/cart">Cart</Link>
-          <button onClick={handleLogout}>Logout</button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+      <header className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+          <Link href="/" className="text-2xl font-bold text-red-500">
+            📚 CloudyInSouth
+          </Link>
+          <div className="flex gap-3">
+            <Link
+              href="/cart"
+              className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50"
+            >
+              🛒 Giỏ hàng
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600"
+            >
+              Đăng xuất
+            </button>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto p-6">
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Hero */}
+        <AccountHero
+          user={user}
+          totalOrders={orders.length}
+          wishlistCount={wishlistItems.length}
+        />
 
-        {/* PROFILE */}
-        <div className="bg-white p-6 rounded shadow mb-6">
-          <h2 className="text-xl font-bold mb-4">
-            Xin chào {user.fullname || user.username}
-          </h2>
-
-          <p>Email: {user.email || 'Chưa có'}</p>
-
-          <button
-            onClick={() => setShowEditModal(true)}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
-          >
-            Edit
-          </button>
+        {/* Stats */}
+        <div className="mt-8">
+          <AccountStats
+            orders={orders.length}
+            wishlist={wishlistItems.length}
+          />
         </div>
 
-        {/* ORDERS */}
-        <div className="bg-white p-6 rounded shadow">
-          <h3 className="text-lg font-bold mb-4">Orders</h3>
+        {/* Content */}
+        <div className="grid lg:grid-cols-[320px_1fr] gap-8 mt-8 items-start">
+          <Sidebar
+            onEdit={() => setShowEditModal(true)}
+            onLogout={handleLogout}
+          />
 
-          {ordersLoading ? (
-            <p>Loading orders...</p>
-          ) : orders.length === 0 ? (
-            <p>No orders</p>
-          ) : (
-            orders.map((o) => (
-              <div key={o.ORDER_ID} className="border p-3 mb-2">
-                <p>#{o.ORDER_ID}</p>
-                <p>{formatDate(o.ORDER_DATE)}</p>
-                <p>{formatPrice(o.TOTAL_AMOUNT)}</p>
-                {getStatusBadge(o.STATUS)}
-              </div>
-            ))
-          )}
+          <OrderList
+            orders={orders}
+            loading={ordersLoading}
+            onDetail={handleDetail}
+            onCancel={handleCancel}
+            onReorder={handleReorder}
+            onRepay={handleRepay}
+            onInvoice={handleInvoice}
+            onReview={handleReview}
+          />
         </div>
       </main>
 
       {/* MODAL */}
-      {showEditModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-          <div className="bg-white p-6 rounded w-96">
-
-            <input
-              value={editData.fullname}
-              onChange={(e) =>
-                setEditData({ ...editData, fullname: e.target.value })
-              }
-              placeholder="Fullname"
-              className="w-full mb-3 p-2 border"
-            />
-
-            <input
-              value={editData.email}
-              onChange={(e) =>
-                setEditData({ ...editData, email: e.target.value })
-              }
-              placeholder="Email"
-              className="w-full mb-3 p-2 border"
-            />
-
-            <div className="flex gap-2">
-              <button onClick={() => setShowEditModal(false)}>
-                Cancel
-              </button>
-              <button onClick={handleUpdateProfile}>
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <EditProfileModal
+        open={showEditModal}
+        editData={editData}
+        editing={editing}
+        onClose={() => setShowEditModal(false)}
+        onChange={(field, value) =>
+          setEditData((prev) => ({
+            ...prev,
+            [field]: value,
+          }))
+        }
+        onSave={handleUpdateProfile}
+      />
 
       {/* TOAST */}
       {toast && (
@@ -279,7 +373,50 @@ export default function Account() {
           {toast.message}
         </div>
       )}
+      {showOrderModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl relative">
+            <button
+              onClick={() => setShowOrderModal(false)}
+              className="absolute top-4 right-4"
+            >
+              ✖
+            </button>
 
+            <h2 className="text-2xl font-bold mb-4">
+              Đơn hàng #{selectedOrder.ORDER_ID}
+            </h2>
+
+            <p>Trạng thái: {selectedOrder.STATUS}</p>
+
+            <p>
+              Tổng tiền:
+              {selectedOrder.TOTAL_AMOUNT?.toLocaleString()}đ
+            </p>
+
+            {selectedOrder.items?.map((item: any) => (
+              <div key={item.ITEM_ID} className="flex gap-3 border-b py-3">
+                <img src={item.IMAGE_URL} className="w-16 h-16 rounded" />
+
+                <div>
+                  <p>{item.TENSP}</p>
+                  <p>x{item.SOLUONG}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+{showReviewModal && selectedOrder && (
+    <ReviewModal
+        order={selectedOrder}
+        onClose={() => setShowReviewModal(false)}
+        onSuccess={() => {
+            showToast("success", "Đánh giá thành công");
+            setShowReviewModal(false);
+        }}
+    />
+)}
       <Footer />
     </div>
   );
