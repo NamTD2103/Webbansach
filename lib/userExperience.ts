@@ -105,7 +105,7 @@ export function toggleWishlistItem(product: Product): { items: WishlistItem[]; i
 
   if (existingIndex >= 0) {
     items.splice(existingIndex, 1);
-    saveStorage(WISHLIST_KEY, items);
+    writeStorage(WISHLIST_KEY, items);
     return { items, isFavorite: false };
   }
 
@@ -117,7 +117,7 @@ export function toggleWishlistItem(product: Product): { items: WishlistItem[]; i
     DESCRIPTION: product.DESCRIPTION,
   });
 
-  saveStorage(WISHLIST_KEY, items);
+  writeStorage(WISHLIST_KEY, items);
   return { items, isFavorite: true };
 }
 
