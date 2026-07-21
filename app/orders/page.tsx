@@ -251,7 +251,7 @@ export default function OrdersPage() {
 
       {/* REVIEW MODAL */}
 
-      {reviewOpen && selectedOrder && (
+      {/* {reviewOpen && selectedOrder && (
         <ReviewModal
           order={selectedOrder}
           onClose={() => setReviewOpen(false)}
@@ -261,7 +261,7 @@ export default function OrdersPage() {
             loadOrders();
           }}
         />
-      )}
+      )} */}
 
       {/* ORDER DETAIL / TRACKING */}
 
