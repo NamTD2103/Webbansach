@@ -242,22 +242,85 @@ export const cartAPI = {
     if (!response.ok) throw new Error('Failed to remove from cart');
     return await response.json();
   },
-};
+  async clearCart(userId:number){
 
-export const orderAPI = {
-  async createOrder(userId: number, paymentMethod: string) {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/order/create`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, paymentMethod }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to create order');
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/cart/clear/${userId}`,
+    {
+      method:"DELETE",
+      headers:{
+        "Content-Type":"application/json"
+      }
     }
-    return await response.json();
-  },
+  );
+
+
+  if(!response.ok){
+
+    const error =
+      await response.json()
+      .catch(()=>({
+        message:"Không thể xóa giỏ hàng"
+      }));
+
+    throw new Error(
+      error.message
+    );
+  }
+
+
+  return await response.json();
+
+},
+};
+export const voucherAPI = {
+
+   async apply(code:string,subtotal:number){
+
+      const response=await fetchWithTimeout(
+         `${API_BASE_URL}/voucher/apply`,
+         {
+            method:"POST",
+            headers:{
+               "Content-Type":"application/json"
+            },
+            body:JSON.stringify({
+                code,
+                subtotal
+            })
+         }
+      );
+
+      if(!response.ok){
+          const error=await response.json();
+          throw new Error(error.message);
+      }
+
+      return await response.json();
+
+   }
+
+}
+export const orderAPI = {
+  async createOrder(orderData: any) {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/order/create`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(orderData),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || "Failed to create order");
+  }
+
+  return await response.json();
+},
 
  async getOrderDetail(orderId: number) {
   const response = await fetchWithTimeout(
@@ -331,13 +394,13 @@ async reorder(orderId: number) {
 },
 
 async reviewProduct(data:{
-    orderId:number;
+    userId:number;
     masp:string;
     rating:number;
     comment:string;
 }){
 
-const response=await fetchWithTimeout(
+const response = await fetchWithTimeout(
 `${API_BASE_URL}/review`,
 {
 method:"POST",
@@ -348,9 +411,19 @@ body:JSON.stringify(data)
 }
 );
 
+
 if(!response.ok){
-throw new Error("Đánh giá thất bại");
+
+const error =
+await response.json()
+.catch(()=>({
+message:"Đánh giá thất bại"
+}));
+
+throw new Error(error.message);
+
 }
+
 
 return await response.json();
 
@@ -612,7 +685,35 @@ async getAllVouchers() {
 
   return await response.json();
 },
+async hideReview(reviewId:number){
 
+const response = await fetchWithTimeout(
+`${API_BASE_URL}/review/admin/${reviewId}`,
+{
+method:"PUT",
+headers:{
+"Content-Type":"application/json"
+}
+}
+);
+
+
+if(!response.ok){
+
+const error =
+await response.json()
+.catch(()=>({
+message:"Ẩn đánh giá thất bại"
+}));
+
+throw new Error(error.message);
+
+}
+
+
+return await response.json();
+
+},
 async getVoucher(id: number) {
   const response = await fetchWithTimeout(
     `${API_BASE_URL}/admin/vouchers/${id}`,
@@ -698,8 +799,186 @@ async deleteVoucher(id: number) {
 
   return await response.json();
 },
-};
+async getAllReviews(){
 
+const response = await fetchWithTimeout(
+`${API_BASE_URL}/review/admin/all`,
+{
+method:"GET",
+headers:{
+"Content-Type":"application/json"
+}
+}
+);
+
+
+if(!response.ok){
+
+const error =
+await response.json()
+.catch(()=>({
+message:"Failed to fetch reviews"
+}));
+
+throw new Error(error.message);
+
+}
+
+
+return await response.json();
+
+},
+
+
+async getAllQuestions(){
+
+const response = await fetchWithTimeout(
+`${API_BASE_URL}/admin/questions`,
+{
+method:"GET",
+headers:{
+"Content-Type":"application/json"
+}
+}
+);
+
+
+if(!response.ok){
+
+const error =
+await response.json()
+.catch(()=>({
+message:"Failed to fetch questions"
+}));
+
+throw new Error(error.message);
+
+}
+
+
+return await response.json();
+
+},
+async answerQuestion(
+  questionId: number,
+  answer: string
+) {
+
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/admin/questions/${questionId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        answer
+      }),
+    }
+  );
+
+
+  if (!response.ok) {
+
+    const error =
+      await response.json()
+      .catch(() => ({
+        message: "Failed to answer question"
+      }));
+
+    throw new Error(error.message);
+
+  }
+
+
+  return await response.json();
+
+},
+};
+export const reviewAPI = {
+
+  // User gửi đánh giá
+  async createReview(data:{
+    userId:number;
+    masp:string;
+    rating:number;
+    comment:string;
+  }){
+
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/review`,
+      {
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify(data)
+      }
+    );
+
+
+    if(!response.ok){
+
+      const error = await response
+        .json()
+        .catch(()=>({
+          message:"Đánh giá thất bại"
+        }));
+
+      throw new Error(error.message);
+
+    }
+
+
+    return await response.json();
+
+  },
+
+async getUserReview(
+    userId:number,
+    masp:string
+){
+
+const response = await fetchWithTimeout(
+`${API_BASE_URL}/review/user/${userId}/${masp}`
+);
+
+if(!response.ok){
+throw new Error("Không lấy được đánh giá");
+}
+
+return await response.json();
+
+},
+
+  // Lấy đánh giá của sản phẩm
+  async getProductReviews(masp:string){
+
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/review/product/${masp}`,
+      {
+        method:"GET",
+        headers:{
+          "Content-Type":"application/json"
+        }
+      }
+    );
+
+
+    if(!response.ok){
+
+      throw new Error(
+        "Không lấy được đánh giá"
+      );
+
+    }
+
+
+    return await response.json();
+
+  }
+
+};
 
 
 export const categoryAPI = {
@@ -725,10 +1004,12 @@ export const categoryAPI = {
 };
 
 export default {
-  productAPI,
-  cartAPI,
-  orderAPI,
-  authAPI,
-  adminAPI,
-  categoryAPI,
-};
+    productAPI,
+    cartAPI,
+    orderAPI,
+    authAPI,
+    adminAPI,
+    categoryAPI,
+    voucherAPI,
+    reviewAPI
+}

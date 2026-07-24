@@ -22,7 +22,6 @@ interface Props {
   onReorder?: (order: Order) => void;
   onRepay?: (order: Order) => void;
   onInvoice?: (order: Order) => void;
-  onReview?: (order: Order) => void;
 }
 
 export default function OrderList({
@@ -33,7 +32,6 @@ export default function OrderList({
   onReorder,
   onRepay,
   onInvoice,
-  onReview,
 }: Props) {
   if (loading) {
     return (
@@ -95,7 +93,7 @@ export default function OrderList({
                 onReorder={onReorder}
                 onRepay={onRepay}
                 onInvoice={onInvoice}
-                onReview={onReview}
+
               />
             ))}
           </div>

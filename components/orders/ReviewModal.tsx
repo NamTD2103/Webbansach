@@ -2,65 +2,56 @@
 
 import { useState } from "react";
 import { Star, XCircle } from "lucide-react";
+import { reviewAPI } from "@/lib/api";
 
-interface OrderItem {
-  MASP: string;
-  TENSP: string;
-  IMAGE_URL: string;
-}
 
-interface Order {
-  ORDER_ID: number;
-  items: OrderItem[];
-}
 
 interface Props {
-  order: Order;
-  onClose: () => void;
-  onSuccess: () => void;
+    userId: number;
+    masp: string;
+    productName: string;
+    onClose: () => void;
+    onSuccess: () => void;
 }
 
 export default function ReviewModal({
-  order,
-  onClose,
-  onSuccess,
+    userId,
+    masp,
+    productName,
+    onClose,
+    onSuccess,
 }: Props) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const submitReview = async () => {
-    if (!comment.trim()) {
-      alert("Vui lòng nhập nội dung đánh giá");
-      return;
-    }
+ const submitReview = async () => {
+  if (!comment.trim()) {
+    alert("Vui lòng nhập nội dung đánh giá");
+    return;
+  }
 
-    try {
-      setLoading(true);
+  try {
+    setLoading(true);
 
-      // Giả lập gọi API
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+    await reviewAPI.createReview({
+      userId,
+      masp,
+      rating,
+      comment,
+    });
 
-      console.log({
-        orderId: order.ORDER_ID,
-        rating,
-        comment,
-        products: order.items,
-      });
+    alert("Đánh giá thành công");
 
-      alert("Đánh giá thành công");
-
-      setComment("");
-      setRating(5);
-
-      onSuccess();
-    } catch (err) {
-      console.error(err);
-      alert("Không thể gửi đánh giá");
-    } finally {
-      setLoading(false);
-    }
-  };
+    onSuccess();
+    onClose();
+  } catch (err) {
+    console.error(err);
+    alert("Không thể gửi đánh giá");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -68,8 +59,12 @@ export default function ReviewModal({
 
         <div className="flex justify-between items-center mb-5">
           <h2 className="text-xl font-bold">
-            Đánh giá đơn #{order.ORDER_ID}
-          </h2>
+  Đánh giá sản phẩm
+</h2>
+
+<p className="text-gray-600 mb-4">
+  {productName}
+</p>
 
           <button onClick={onClose}>
             <XCircle />
@@ -77,25 +72,7 @@ export default function ReviewModal({
         </div>
 
         {/* Danh sách sản phẩm */}
-        <div className="space-y-3 max-h-56 overflow-y-auto mb-5">
-          {order.items.map((item) => (
-            <div
-              key={item.MASP}
-              className="flex items-center gap-3 border rounded-lg p-2"
-            >
-              <img
-                src={item.IMAGE_URL}
-                alt={item.TENSP}
-                className="w-14 h-14 rounded object-cover"
-              />
-
-              <p className="font-medium flex-1">
-                {item.TENSP}
-              </p>
-            </div>
-          ))}
-        </div>
-
+        
         {/* Chọn sao */}
         <div className="flex justify-center gap-2 mb-2">
           {[1, 2, 3, 4, 5].map((item) => (

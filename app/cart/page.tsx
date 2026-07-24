@@ -30,19 +30,22 @@ export default function Cart() {
   const [user, setUser] = useState<any>(null);
   const [guestCart, setGuestCart] = useState<any[]>([]);
 
-  useEffect(() => {
-    const currentUser = authAPI.getCurrentUser();
-    if (!currentUser) {
-      setUser(null);
-      setGuestCart(getGuestCart());
-      setCartItems(getGuestCart() as CartItem[]);
-      setLoading(false);
-      return;
-    }
+ useEffect(() => {
+  let currentUser = authAPI.getCurrentUser();
 
-    setUser(currentUser);
-    fetchCart(currentUser.userId);
-  }, [router]);
+  // Nếu chưa đăng nhập thì dùng tài khoản guest
+  if (!currentUser) {
+    currentUser = {
+      userId: 9999,
+      username: "guest",
+      fullname: "Khách vãng lai",
+      role: "USER",
+    };
+  }
+
+  setUser(currentUser);
+  fetchCart(currentUser.userId);
+}, []);
 
   const fetchCart = async (userId: number) => {
     try {
@@ -60,12 +63,12 @@ export default function Cart() {
   };
 
   const handleRemoveItem = async (masp: string) => {
-    if (!user) {
-      const next = removeGuestCartItem(masp);
-      setCartItems(next as CartItem[]);
-      setGuestCart(next);
-      return;
-    }
+  try {
+  await cartAPI.removeFromCart(user.userId, masp);
+  fetchCart(user.userId);
+} catch (err) {
+  console.error(err);
+}
 
     try {
       console.log('[CART] Removing item:', masp);
@@ -87,13 +90,20 @@ export default function Cart() {
   };
 
  const handleCheckout = () => {
-  if (!user || cartItems.length === 0) return;
 
-  // lưu cart để dùng bên checkout
-  localStorage.setItem('cart', JSON.stringify(cartItems));
+  if(cartItems.length === 0){
+    alert("Giỏ hàng trống");
+    return;
+  }
 
-  // chuyển sang trang thanh toán
-  router.push('/checkout');
+
+  localStorage.setItem(
+    "cart",
+    JSON.stringify(cartItems)
+  );
+
+
+  router.push("/checkout");
 };
   const totalAmount = cartItems.reduce((sum, item) => sum + (item.TOTAL_PRICE || 0), 0);
 

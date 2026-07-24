@@ -11,14 +11,19 @@ const PDFDocument=require("pdfkit");
 router.post('/create', async (req, res) => {
   let connection;
   try {
-    const { userId, paymentMethod } = req.body;
+    const {
+ userId,
+ customerInfo,
+ shippingAddress,
+ paymentMethod
+} = req.body;
 
-    if (!userId || !paymentMethod) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required fields: userId, paymentMethod',
-      });
-    }
+    if (!paymentMethod) {
+  return res.status(400).json({
+    success: false,
+    message: "Missing payment method",
+  });
+}
 
     console.log(`[ORDER] Creating order for user ${userId} with method ${paymentMethod}`);
 
@@ -65,13 +70,60 @@ router.post('/create', async (req, res) => {
 
     // Insert order
     const orderInsert = `
-      INSERT INTO ORDERS (ORDER_ID, USER_ID, STATUS, TOTAL_AMOUNT, ORDER_DATE)
-      VALUES (:orderId, :userId, 'PENDING', :totalAmount, SYSDATE)
+      INSERT INTO ORDERS
+(
+ORDER_ID,
+USER_ID,
+STATUS,
+TOTAL_AMOUNT,
+PAYMENT_METHOD,
+ORDER_DATE,
+CUSTOMER_NAME,
+CUSTOMER_PHONE,
+CUSTOMER_EMAIL,
+SHIPPING_ADDRESS
+)
+VALUES
+(
+:orderId,
+:userId,
+'PENDING',
+:totalAmount,
+:paymentMethod,
+SYSDATE,
+:customerName,
+:customerPhone,
+:customerEmail,
+:shippingAddress
+)
     `;
 
-    await connection.execute(orderInsert, [orderId, userId, totalAmount], {
-      autoCommit: false,
-    });
+    await connection.execute(
+orderInsert,
+{
+ orderId,
+
+ userId: userId || null,
+
+ totalAmount,
+
+ paymentMethod,
+
+ customerName: customerInfo?.fullname || null,
+
+ customerPhone: customerInfo?.phone || null,
+
+ customerEmail: customerInfo?.email || null,
+
+ shippingAddress:
+ `${shippingAddress.street},
+ ${shippingAddress.district},
+ ${shippingAddress.province}`
+},
+{
+ autoCommit:false
+}
+);
 
     console.log(`[ORDER] Created order ${orderId}`);
 
@@ -119,14 +171,6 @@ router.post('/create', async (req, res) => {
     // Commit transaction
     await connection.commit();
     console.log(`[ORDER] Order ${orderId} created successfully`);
-
-    if (connection) {
-      try {
-        await connection.close();
-      } catch (err) {
-        console.error('[ORDER] Error closing connection:', err.message);
-      }
-    }
 
     res.json({
       success: true,

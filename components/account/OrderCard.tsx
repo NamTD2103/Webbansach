@@ -41,7 +41,6 @@ interface Props {
 
   onInvoice?: (order: Order) => void;
 
-  onReview?: (order: Order) => void;
 }
 
 export default function OrderCard({
@@ -57,7 +56,6 @@ export default function OrderCard({
 
   onInvoice,
 
-  onReview,
 }: Props) {
   const formatPrice = (price: number) =>
     new Intl.NumberFormat("vi-VN", {
@@ -297,7 +295,7 @@ gap-1
             </button>
           )}
 
-          {order.STATUS === "DELIVERED" && (
+         {["DELIVERED", "COMPLETED"].includes(order.STATUS) && (
             <button
               onClick={() => onReorder?.(order)}
               className="
@@ -316,24 +314,7 @@ gap-1
             </button>
           )}
 
-          {order.STATUS === "DELIVERED" && (
-            <button
-              onClick={() => onReview?.(order)}
-              className="
-rounded-xl
-bg-yellow-500
-px-3
-py-2
-text-white
-flex
-items-center
-gap-1
-"
-            >
-              <Star size={16} />
-              Đánh giá
-            </button>
-          )}
+          
 
           {order.STATUS === "PENDING" && (
             <button

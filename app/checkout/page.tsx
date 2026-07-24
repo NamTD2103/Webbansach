@@ -1,15 +1,16 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { authAPI, cartAPI, orderAPI } from '@/lib/api';
-import CheckoutForm from './components/CheckoutForm';
-import AddressForm from './components/AddressForm';
-import PaymentMethod from './components/PaymentMethod';
-import OrderSummary from './components/OrderSummary';
-import { CartItem } from '@/lib/api';
-import Footer from '@/components/Footer';
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { authAPI, cartAPI, orderAPI, voucherAPI } from "@/lib/api";
+import CheckoutForm from "./components/CheckoutForm";
+import AddressForm from "./components/AddressForm";
+import PaymentMethod from "./components/PaymentMethod";
+import OrderSummary from "./components/OrderSummary";
+import { CartItem } from "@/lib/api";
+import Footer from "@/components/Footer";
+
 // Shipping fees
 const SHIPPING_FEES: { [key: string]: number } = {
   HN: 0,
@@ -30,70 +31,90 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [toast, setToast] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   // Customer info
   const [customer, setCustomer] = useState({
-    fullname: '',
-    phone: '',
-    email: '',
+    fullname: "",
+    phone: "",
+    email: "",
   });
 
   // Address info
   const [address, setAddress] = useState({
-    province: '',
-    district: '',
-    ward: '',
-    street: '',
+    province: "",
+    district: "",
+    ward: "",
+    street: "",
   });
 
   // Payment
-  const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [paymentMethod, setPaymentMethod] = useState("cod");
 
   // Discount
-  const [discountCode, setDiscountCode] = useState('');
+  const [discountCode, setDiscountCode] = useState("");
+
   const [discount, setDiscount] = useState(0);
+
+  const [voucher, setVoucher] = useState<any>(null);
+
+  const [applyingVoucher, setApplyingVoucher] = useState(false);
 
   // Initialize
   useEffect(() => {
     const initCheckout = async () => {
       try {
-        const currentUser = authAPI.getCurrentUser();
+        // Lấy user đang đăng nhập
+        let currentUser = authAPI.getCurrentUser();
+
+        // Nếu chưa đăng nhập thì dùng tài khoản guest
         if (!currentUser) {
-          router.push('/login');
-          return;
+          currentUser = {
+            userId: 9999,
+            username: "guest",
+            fullname: "Khách vãng lai",
+            email: "",
+            role: "USER",
+          };
         }
 
         setUser(currentUser);
+
+        // Điền thông tin mặc định
         setCustomer({
-          fullname: currentUser.fullname || '',
-          phone: '',
-          email: currentUser.email || '',
+          fullname: currentUser.fullname || "",
+          phone: "",
+          email: currentUser.email || "",
         });
 
-        // Fetch cart
+        // Luôn lấy giỏ hàng từ database
         const cartResult = await cartAPI.getCart(currentUser.userId);
-        console.log('[Checkout] Cart:', cartResult);
-        
-        if (cartResult.data && cartResult.data.length > 0) {
-          setCart(cartResult.data);
-        }
 
+        console.log("[Cart]", cartResult);
+
+        if (cartResult.success) {
+          setCart(cartResult.data || []);
+        }
         setLoading(false);
       } catch (error) {
-        console.error('[Checkout] Init error:', error);
-        showToast('error', 'Lỗi tải giỏ hàng');
+        console.error("[Checkout Init Error]", error);
+
+        showToast("error", "Không tải được giỏ hàng");
+
         setLoading(false);
       }
     };
 
     initCheckout();
-  }, [router]);
+  }, []);
 
   // Calculate prices
   const subtotal = cart.reduce(
     (sum, item) => sum + (item.GIABAN || 0) * item.SOLUONG,
-    0
+    0,
   );
   const shippingFee = SHIPPING_FEES[address.province] || 0;
   const total = subtotal + shippingFee - discount;
@@ -104,28 +125,28 @@ export default function CheckoutPage() {
 
     // Customer validation
     if (!customer.fullname.trim()) {
-      newErrors.fullname = 'Vui lòng nhập họ tên';
+      newErrors.fullname = "Vui lòng nhập họ tên";
     }
     if (!customer.phone.trim()) {
-      newErrors.phone = 'Vui lòng nhập số điện thoại';
-    } else if (!/^0\d{9,10}$/.test(customer.phone.replace(/\s+/g, ''))) {
-      newErrors.phone = 'Số điện thoại không hợp lệ';
+      newErrors.phone = "Vui lòng nhập số điện thoại";
+    } else if (!/^0\d{9,10}$/.test(customer.phone.replace(/\s+/g, ""))) {
+      newErrors.phone = "Số điện thoại không hợp lệ";
     }
-    if (!customer.email.trim()) {
-      newErrors.email = 'Vui lòng nhập email';
+    if (customer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email)) {
+      newErrors.email = "Email không đúng định dạng";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email)) {
-      newErrors.email = 'Email không đúng định dạng';
+      newErrors.email = "Email không đúng định dạng";
     }
 
     // Address validation
     if (!address.province) {
-      newErrors.province = 'Vui lòng chọn tỉnh/thành phố';
+      newErrors.province = "Vui lòng chọn tỉnh/thành phố";
     }
     if (!address.district) {
-      newErrors.district = 'Vui lòng chọn quận/huyện';
+      newErrors.district = "Vui lòng chọn quận/huyện";
     }
     if (!address.street.trim()) {
-      newErrors.street = 'Vui lòng nhập địa chỉ chi tiết';
+      newErrors.street = "Vui lòng nhập địa chỉ chi tiết";
     }
 
     setErrors(newErrors);
@@ -155,83 +176,146 @@ export default function CheckoutPage() {
     }
   };
 
-  // Apply discount (demo)
-  const handleApplyDiscount = () => {
-    if (discountCode === 'DEMO50') {
-      setDiscount(Math.floor(subtotal * 0.1)); // 10% discount
-      showToast('success', 'Áp dụng mã giảm giá thành công!');
-    } else if (discountCode) {
-      showToast('error', 'Mã giảm giá không hợp lệ');
+  const handleApplyDiscount = async () => {
+    if (!discountCode.trim()) {
+      showToast("error", "Vui lòng nhập mã giảm giá");
+      return;
+    }
+
+    try {
+      setApplyingVoucher(true);
+
+      const res = await voucherAPI.apply(discountCode.toUpperCase(), subtotal);
+
+      if (!res.success) {
+        showToast("error", res.message);
+        return;
+      }
+
+      setVoucher(res.voucher);
+
+      setDiscount(res.discount);
+
+      showToast("success", `Áp dụng ${res.voucher.CODE} thành công`);
+    } catch (err: any) {
+      showToast("error", err.message || "Không áp dụng được voucher");
+    } finally {
+      setApplyingVoucher(false);
     }
   };
 
   // Submit order
   const handleSubmitOrder = async () => {
     if (!validateForm()) {
-      showToast('error', 'Vui lòng điền đầy đủ thông tin');
+      showToast("error", "Vui lòng điền đầy đủ thông tin");
       return;
     }
 
     if (cart.length === 0) {
-      showToast('error', 'Giỏ hàng trống');
+      showToast("error", "Giỏ hàng trống");
       return;
     }
 
     try {
       setSubmitting(true);
-
       const orderData = {
-        userId: user.userId,
+       userId: user?.userId ?? 9999,
+
         customerInfo: customer,
+
         shippingAddress: address,
+
         items: cart.map((item) => ({
           masp: item.MASP,
-          tensp: item.TENSP,
-          giaban: item.GIABAN,
           soluong: item.SOLUONG,
-          imageUrl: item.IMAGE_URL,
         })),
+
         paymentMethod,
-        subtotal,
-        shippingFee,
+
+        voucherCode: voucher?.CODE || null,
+
+        voucherId: voucher?.VOUCHER_ID || null,
+
         discount,
+
+        subtotal,
+
+        shippingFee,
+
         totalAmount: total,
       };
 
-      console.log('[Checkout] Submitting order:', orderData);
+      console.log("[Checkout] Submitting order:", orderData);
 
       // Simulate payment processing for online methods
-      if (paymentMethod !== 'cod') {
+      if (paymentMethod !== "cod") {
         // In real app, redirect to payment gateway
-        showToast('success', 'Chuyển hướng đến cổng thanh toán...');
+        showToast("success", "Chuyển hướng đến cổng thanh toán...");
         await new Promise((resolve) => setTimeout(resolve, 1500));
       }
 
-      const result = await orderAPI.createOrder(
-        user.userId,
-        paymentMethod
+      const result = await orderAPI.createOrder(orderData);
+
+      console.log("[Checkout] Order created:", result);
+
+      // Lưu thông tin đơn hàng vừa tạo
+      localStorage.setItem(
+        "lastOrder",
+        JSON.stringify({
+          orderId: result.orderId,
+
+          customer,
+
+          address,
+
+          items: cart,
+
+          subtotal,
+
+          shippingFee,
+
+          discount,
+
+          total,
+
+          paymentMethod,
+
+          voucher,
+        }),
       );
 
-      console.log('[Checkout] Order created:', result);
+      // Xóa giỏ hàng
+      try {
+        try {
+          await cartAPI.clearCart(user?.userId ?? 9999);
 
-      showToast('success', 'Đặt hàng thành công!');
+          setCart([]);
+        } catch (error) {
+          console.error("Clear cart error:", error);
+        }
 
-      // Clear cart after successful order
+        setCart([]);
+      } catch (error) {
+        console.error("Clear cart error:", error);
+      }
+
+      showToast("success", "Đặt hàng thành công!");
+
       setTimeout(() => {
-        router.push(`/order-success?id=${result.data.orderId}`);
+        router.push(`/order-success?id=${result.orderId}`);
       }, 1500);
     } catch (error) {
-      console.error('[Checkout] Order error:', error);
+      console.error("[Checkout] Order error:", error);
       showToast(
-        'error',
-        error instanceof Error ? error.message : 'Lỗi đặt hàng'
+        "error",
+        error instanceof Error ? error.message : "Lỗi đặt hàng",
       );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const showToast = (type: 'success' | 'error', message: string) => {
+  const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3000);
   };
@@ -240,19 +324,6 @@ export default function CheckoutPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center">
         <p className="text-lg text-gray-600">⏳ Đang tải...</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg text-gray-600 mb-4">Vui lòng đăng nhập để tiếp tục</p>
-          <Link href="/login" className="text-red-500 hover:text-red-700 font-semibold">
-            Đi đến trang đăng nhập
-          </Link>
-        </div>
       </div>
     );
   }
@@ -327,28 +398,89 @@ export default function CheckoutPage() {
             </div>
 
             {/* Discount Code */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <span>🎁</span> Mã giảm giá
-              </h3>
-              <div className="flex gap-2">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  🎁 Voucher
+                </h3>
+
+                {voucher && (
+                  <span className="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-semibold">
+                    Đã áp dụng
+                  </span>
+                )}
+              </div>
+
+              <div className="flex gap-3">
                 <input
-                  type="text"
                   value={discountCode}
-                  onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
-                  placeholder="Nhập mã giảm giá (Ví dụ: DEMO50)"
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500"
+                  onChange={(e) =>
+                    setDiscountCode(e.target.value.toUpperCase())
+                  }
+                  placeholder="Nhập mã giảm giá..."
+                  className="flex-1 border-2 border-gray-200 rounded-xl px-4 py-3
+        focus:border-red-500 outline-none transition"
                 />
+
                 <button
+                  disabled={applyingVoucher}
                   onClick={handleApplyDiscount}
-                  className="px-6 py-2 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition"
+                  className="bg-red-500 hover:bg-red-600 disabled:bg-gray-300
+        text-white px-6 rounded-xl font-semibold transition"
                 >
-                  Áp dụng
+                  {applyingVoucher ? "..." : "Áp dụng"}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                💡 Mẹo: Thử mã "DEMO50" để có 10% giảm giá
-              </p>
+
+              {voucher && (
+                <div
+                  className="
+  mt-5
+  rounded-2xl
+  border
+  border-green-200
+  bg-gradient-to-r
+  from-green-50
+  to-emerald-100
+  p-5
+  shadow-sm
+  "
+                >
+                  <div className="flex justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-full bg-green-500 text-white flex items-center justify-center">
+                          🏷
+                        </div>
+
+                        <div>
+                          <p className="font-bold text-lg">{voucher.CODE}</p>
+
+                          <p className="text-sm text-gray-500">
+                            Voucher đã được áp dụng
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="text-sm text-gray-600 mt-1">
+                        {voucher.DISCOUNT_TYPE === "PERCENT"
+                          ? `Giảm ${voucher.DISCOUNT_VALUE}%`
+                          : `Giảm ${voucher.DISCOUNT_VALUE.toLocaleString(
+                              "vi-VN",
+                            )}₫`}
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500">Bạn tiết kiệm</p>
+
+                      <p className="text-xl font-bold text-red-600">
+                        -{discount.toLocaleString("vi-VN")}₫
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -364,7 +496,7 @@ export default function CheckoutPage() {
                 disabled={submitting}
                 className="flex-1 py-3 px-4 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 disabled:opacity-50 transition"
               >
-                {submitting ? '⏳ Đang xử lý...' : '✓ Đặt hàng'}
+                {submitting ? "⏳ Đang xử lý..." : "✓ Đặt hàng"}
               </button>
             </div>
           </div>
@@ -377,6 +509,7 @@ export default function CheckoutPage() {
               shippingFee={shippingFee}
               discount={discount}
               total={total}
+              voucher={voucher}
               loading={submitting}
             />
           </div>
@@ -387,7 +520,7 @@ export default function CheckoutPage() {
       {toast && (
         <div
           className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg text-white font-semibold shadow-lg animate-pulse ${
-            toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            toast.type === "success" ? "bg-green-500" : "bg-red-500"
           }`}
         >
           {toast.message}

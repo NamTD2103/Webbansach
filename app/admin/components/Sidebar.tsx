@@ -5,13 +5,26 @@ import {
   Package,
   Users,
   ShoppingCart,
-  BarChart3,
   Settings,
   TicketPercent,
   House,
+  Star,
+  MessageCircle,
 } from "lucide-react";
 
-type Tab = "dashboard" | "products" | "accounts" | "orders" | "vouchers";
+type Tab =
+  | "dashboard"
+  | "products"
+  | "accounts"
+  | "orders"
+  | "vouchers"
+  | "reviews"
+  | "questions";
+  type MenuItem = {
+  key: Tab;
+  title: string;
+  icon: any;
+};
 
 interface Props {
   activeTab: Tab;
@@ -44,6 +57,18 @@ const menus = [
     title: "Mã khuyến mãi",
     icon: TicketPercent,
   },
+  {
+  key: "reviews",
+  title: "Đánh giá sản phẩm",
+  icon: Star,
+},
+
+{
+  key: "questions",
+  title: "Hỏi đáp khách hàng",
+  icon: MessageCircle,
+},
+  
 ] as const;
 
 export default function Sidebar({ activeTab, onChange }: Props) {
@@ -57,7 +82,7 @@ export default function Sidebar({ activeTab, onChange }: Props) {
         <p className="text-sm text-slate-500 mt-2">Admin Dashboard</p>
       </div>
 
-      <div className="p-4 space-y-2">
+      <div className="p-4 space-y-2 overflow-y-auto h-[calc(100vh-220px)]">
         {menus.map((menu) => {
           const Icon = menu.icon;
 

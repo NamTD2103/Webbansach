@@ -11,7 +11,7 @@ import AccountStats from "@/components/account/AccountStats";
 import Sidebar from "@/components/account/Sidebar";
 import OrderList from "@/components/account/OrderList";
 import EditProfileModal from "@/components/account/EditProfileModal";
-import ReviewModal from "@/components/orders/ReviewModal";
+import ReviewItem from "@/components/orders/ReviewItem";
 // ================= TYPES =================
 interface UserProfile {
   userId: number;
@@ -48,9 +48,7 @@ export default function Account() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [orders, setOrders] = useState<Order[]>([]);
-
-  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);  
 
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
@@ -61,6 +59,7 @@ export default function Account() {
   const [reorderLoading, setReorderLoading] = useState(false);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+  
 
 
   const [showEditModal, setShowEditModal] = useState(false);
@@ -186,19 +185,7 @@ export default function Account() {
       showToast("error", "Không tải được hóa đơn");
     }
   };
-const handleReview = async (order: Order) => {
-  try {
-    const result = await orderAPI.getOrderDetail(order.ORDER_ID);
 
-    setSelectedOrder(result.data);
-
-    setShowReviewModal(true);
-
-  } catch (err) {
-    console.error(err);
-    showToast("error", "Không tải được sản phẩm");
-  }
-};
 
   // ===== TOAST =====
   const showToast = (type: "success" | "error", message: string) => {
@@ -339,16 +326,15 @@ const handleReview = async (order: Order) => {
             onLogout={handleLogout}
           />
 
-          <OrderList
-            orders={orders}
-            loading={ordersLoading}
-            onDetail={handleDetail}
-            onCancel={handleCancel}
-            onReorder={handleReorder}
-            onRepay={handleRepay}
-            onInvoice={handleInvoice}
-            onReview={handleReview}
-          />
+         <OrderList
+    orders={orders}
+    loading={ordersLoading}
+    onDetail={handleDetail}
+    onCancel={handleCancel}
+    onReorder={handleReorder}
+    onRepay={handleRepay}
+    onInvoice={handleInvoice}
+/>
         </div>
       </main>
 
@@ -395,28 +381,38 @@ const handleReview = async (order: Order) => {
             </p>
 
             {selectedOrder.items?.map((item: any) => (
-              <div key={item.ITEM_ID} className="flex gap-3 border-b py-3">
-                <img src={item.IMAGE_URL} className="w-16 h-16 rounded" />
+  <div
+    key={item.ITEM_ID}
+    className="flex gap-4 border-b py-5"
+  >
+    <img
+      src={item.IMAGE_URL || "/images/no-image.png"}
+      className="w-20 h-20 rounded-lg object-cover"
+    />
 
-                <div>
-                  <p>{item.TENSP}</p>
-                  <p>x{item.SOLUONG}</p>
-                </div>
-              </div>
-            ))}
+    <div className="flex-1">
+
+      <h3 className="font-semibold text-lg">
+        {item.TENSP}
+      </h3>
+
+      <p className="text-gray-500">
+        Số lượng: {item.SOLUONG}
+      </p>
+
+     <ReviewItem
+    userId={user.userId}
+    masp={item.MASP}
+    productName={item.TENSP}
+/>
+
+    </div>
+  </div>
+))}
           </div>
         </div>
       )}
-{showReviewModal && selectedOrder && (
-    <ReviewModal
-        order={selectedOrder}
-        onClose={() => setShowReviewModal(false)}
-        onSuccess={() => {
-            showToast("success", "Đánh giá thành công");
-            setShowReviewModal(false);
-        }}
-    />
-)}
+
       <Footer />
     </div>
   );

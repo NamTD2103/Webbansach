@@ -4,7 +4,10 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { productAPI, cartAPI, Product, authAPI } from '@/lib/api';
-import { addGuestCartItem, toggleWishlistItem, isWishlisted } from '@/lib/userExperience';
+import {
+    toggleWishlistItem,
+    isWishlisted
+} from '@/lib/userExperience';
 
 function ProductSkeleton() {
   return (
@@ -55,31 +58,37 @@ export default function ProductDetail() {
   };
 
   const handleAddToCart = async () => {
-    try {
-      if (!product || product.SOLUONGTON === 0) return;
+  try {
+    if (!product || product.SOLUONGTON === 0) return;
 
-      if (quantity > product.SOLUONGTON) {
-        alert(`Chỉ còn ${product.SOLUONGTON} sản phẩm!`);
-        return;
-      }
-
-      setAddingCart(true);
-      const user = authAPI.getCurrentUser();
-      if (!user) {
-        addGuestCartItem(product, quantity);
-      } else {
-        await cartAPI.addToCart(user.userId, product.MASP, quantity);
-      }
-
-      setCartSuccess(true);
-      setTimeout(() => setCartSuccess(false), 2000);
-      setQuantity(1);
-    } catch (err: any) {
-      alert(err.message || 'Failed to add to cart');
-    } finally {
-      setAddingCart(false);
+    if (quantity > product.SOLUONGTON) {
+      alert(`Chỉ còn ${product.SOLUONGTON} sản phẩm!`);
+      return;
     }
-  };
+
+    setAddingCart(true);
+
+    const currentUser = authAPI.getCurrentUser() || {
+      userId: 9999,
+      username: "guest",
+    };
+
+    await cartAPI.addToCart(
+      currentUser.userId,
+      product.MASP,
+      quantity
+    );
+
+    setCartSuccess(true);
+    setTimeout(() => setCartSuccess(false), 2000);
+    setQuantity(1);
+
+  } catch (err: any) {
+    alert(err.message || "Failed to add to cart");
+  } finally {
+    setAddingCart(false);
+  }
+};
 
   const handleWishlistToggle = () => {
     if (!product) return;

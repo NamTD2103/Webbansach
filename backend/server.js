@@ -17,13 +17,20 @@ const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const paymentRoutes = require('./routes/payment');
 const chatbotRoutes = require('./routes/chatbot');
-
+const voucherRoutes = require("./routes/voucher");
 const recommendationRoutes = require('./routes/recommendations');
 const profileRoutes = require('./routes/profile');
+const questionRoutes = require("./routes/question");
+const reviewRoutes=require("./routes/review");
 
 // Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+
+
+
+
 
 // Middleware
 app.use(express.json());
@@ -80,6 +87,14 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/voucher', voucherRoutes);
+app.use("/api/review",reviewRoutes);
+
+app.use("/api/admin/reviews",reviewRoutes);
+app.use("/api/question", questionRoutes);
+
+app.use("/api/admin/questions", questionRoutes);
+app.use('/api/voucher', voucherRoutes);
 
 // 404 handler
 app.use((req, res) => {

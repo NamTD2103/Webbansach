@@ -18,7 +18,11 @@ import VoucherTable from "./components/VoucherTable";
 import VoucherModal from "./components/VoucherModal";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { productAPI, adminAPI, Product } from "@/lib/api";
+import { 
+  productAPI, 
+  adminAPI,
+  Product 
+} from "@/lib/api";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import ProductTable from "./components/ProductTable";
@@ -26,6 +30,8 @@ import ProductModal from "./components/ProductModal";
 import AccountsTable from "./components/AccountsTable";
 import AccountModal from "./components/AccountModal";
 import Toast from "./components/Toast";
+import ReviewTable from "./components/ReviewTable";
+import QuestionTable from "./components/QuestionTable";
 
 interface User {
   USER_ID: number;
@@ -43,9 +49,15 @@ interface ToastType {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<
-    "dashboard" | "products" | "accounts" | "orders" | "vouchers"
-  >("dashboard");
+  const [activeTab,setActiveTab]=useState<
+"dashboard" |
+"products" |
+"accounts" |
+"orders" |
+"vouchers" |
+"reviews" |
+"questions"
+>("dashboard");
 
   // Product states
   const [products, setProducts] = useState<Product[]>([]);
@@ -53,6 +65,7 @@ export default function AdminDashboard() {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [totalProducts, setTotalProducts] = useState(0);
+  const [productKeyword, setProductKeyword] = useState("");
 
   // Account states
   const [users, setUsers] = useState<User[]>([]);
@@ -60,17 +73,30 @@ export default function AdminDashboard() {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [accountModalLoading, setAccountModalLoading] = useState(false);
+// Review states
+const [reviews,setReviews] = useState<any[]>([]);
+const [reviewLoading,setReviewLoading] = useState(false);
 
+
+// Question states
+const [questions,setQuestions] = useState<any[]>([]);
+const [questionLoading,setQuestionLoading] = useState(false);
   // Order states
   const [orders, setOrders] = useState<any[]>([]);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [paymentFilter, setPaymentFilter] = useState("ALL");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [vouchers, setVouchers] = useState<any[]>([]);
 
-const [voucherLoading, setVoucherLoading] = useState(false);
+  const [voucherLoading, setVoucherLoading] = useState(false);
 
-const [editingVoucher, setEditingVoucher] = useState<any>(null);
+  const [editingVoucher, setEditingVoucher] = useState<any>(null);
 
-const [isVoucherModalOpen, setIsVoucherModalOpen] =useState(false);
+  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
 
   // Toast
   const [toast, setToast] = useState<ToastType | null>(null);
@@ -86,14 +112,106 @@ const [isVoucherModalOpen, setIsVoucherModalOpen] =useState(false);
     });
     return Object.keys(map).map((date) => ({ date, total: map[date] }));
   }, [orders]);
+  const filteredOrders = useMemo(() => {
+    let data = [...orders];
+
+    // Tìm kiếm
+    if (searchKeyword.trim()) {
+      const keyword = searchKeyword.toLowerCase();
+
+      data = data.filter(
+        (o) =>
+          o.ORDER_ID?.toString().includes(keyword) ||
+          o.USERNAME?.toLowerCase().includes(keyword) ||
+          o.FULLNAME?.toLowerCase().includes(keyword),
+      );
+    }
+
+    // Trạng thái
+    if (statusFilter !== "ALL") {
+      data = data.filter((o) => o.STATUS === statusFilter);
+    }
+
+    // Thanh toán
+    if (paymentFilter !== "ALL") {
+      data = data.filter((o) => o.PAYMENT_METHOD === paymentFilter);
+    }
+
+    // Ngày bắt đầu
+    if (fromDate) {
+      data = data.filter((o) => new Date(o.ORDER_DATE) >= new Date(fromDate));
+    }
+
+    // Ngày kết thúc
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59);
+
+      data = data.filter((o) => new Date(o.ORDER_DATE) <= end);
+    }
+
+    switch (sortBy) {
+      case "oldest":
+        data.sort(
+          (a, b) =>
+            new Date(a.ORDER_DATE).getTime() - new Date(b.ORDER_DATE).getTime(),
+        );
+        break;
+
+      case "price_high":
+        data.sort((a, b) => (b.TOTAL_AMOUNT || 0) - (a.TOTAL_AMOUNT || 0));
+        break;
+
+      case "price_low":
+        data.sort((a, b) => (a.TOTAL_AMOUNT || 0) - (b.TOTAL_AMOUNT || 0));
+        break;
+
+      default:
+        data.sort(
+          (a, b) =>
+            new Date(b.ORDER_DATE).getTime() - new Date(a.ORDER_DATE).getTime(),
+        );
+    }
+
+    return data;
+  }, [
+    orders,
+    searchKeyword,
+    statusFilter,
+    paymentFilter,
+    fromDate,
+    toDate,
+    sortBy,
+  ]);
+  const filteredProducts = useMemo(() => {
+    if (!productKeyword.trim()) return products;
+
+    const keyword = productKeyword.toLowerCase();
+
+    return products.filter(
+      (p) =>
+        p.MASP?.toLowerCase().includes(keyword) ||
+        p.TENSP?.toLowerCase().includes(keyword),
+    );
+  }, [products, productKeyword]);
+  const totalFilteredAmount = useMemo(() => {
+    return filteredOrders.reduce(
+      (sum, order) => sum + (order.TOTAL_AMOUNT || 0),
+      0,
+    );
+  }, [filteredOrders]);
 
   // Fetch functions
   useEffect(() => {
+
     fetchProducts();
     fetchUsers();
     fetchOrders();
     fetchVouchers();
-  }, []);
+    fetchReviews();
+    fetchQuestions();
+
+}, []);
   useEffect(() => {
     if (activeTab === "accounts" && users.length === 0) {
       fetchUsers();
@@ -101,6 +219,14 @@ const [isVoucherModalOpen, setIsVoucherModalOpen] =useState(false);
       fetchOrders();
     }
   }, [activeTab]);
+  const handleResetFilter = () => {
+    setSearchKeyword("");
+    setStatusFilter("ALL");
+    setPaymentFilter("ALL");
+    setFromDate("");
+    setToDate("");
+    setSortBy("newest");
+  };
 
   const fetchProducts = async () => {
     try {
@@ -116,19 +242,68 @@ const [isVoucherModalOpen, setIsVoucherModalOpen] =useState(false);
     }
   };
   const fetchVouchers = async () => {
-    try{
-        setVoucherLoading(true);
+  try {
+    setVoucherLoading(true);
 
-        const res = await adminAPI.getAllVouchers();
+    const res = await adminAPI.getAllVouchers();
 
-        setVouchers(res.data || []);
+    setVouchers(res.data || []);
+  } finally {
+    setVoucherLoading(false);
+  }
+};
+const fetchReviews = async()=>{
 
-    }finally{
-        setVoucherLoading(false);
-    }
-}
+  try{
 
+    setReviewLoading(true);
 
+    const res = await adminAPI.getAllReviews();
+
+    setReviews(res.data || []);
+
+  }catch(err){
+
+    console.error(err);
+
+    showToast(
+      "Lỗi tải đánh giá",
+      "error"
+    );
+
+  }finally{
+
+    setReviewLoading(false);
+
+  }
+
+};
+const fetchQuestions = async()=>{
+
+  try{
+
+    setQuestionLoading(true);
+
+    const res = await adminAPI.getAllQuestions();
+
+    setQuestions(res.data || []);
+
+  }catch(err){
+
+    console.error(err);
+
+    showToast(
+      "Lỗi tải hỏi đáp",
+      "error"
+    );
+
+  }finally{
+
+    setQuestionLoading(false);
+
+  }
+
+};
   const fetchUsers = async () => {
     try {
       setUsersLoading(true);
@@ -177,7 +352,7 @@ const [isVoucherModalOpen, setIsVoucherModalOpen] =useState(false);
       showToast("Tên sản phẩm không được để trống", "error");
       return;
     }
-    if (!productData.GIA || productData.GIA <= 0) {
+    if (!productData.GIABAN || Number(productData.GIABAN) <= 0) {
       showToast("Giá sản phẩm phải lớn hơn 0", "error");
       return;
     }
@@ -243,50 +418,50 @@ const [isVoucherModalOpen, setIsVoucherModalOpen] =useState(false);
   };
   // ================= Voucher =================
 
-const handleAddVoucher = () => {
-  setEditingVoucher(null);
-  setIsVoucherModalOpen(true);
-};
-
-const handleEditVoucher = (voucher: any) => {
-  setEditingVoucher(voucher);
-  setIsVoucherModalOpen(true);
-};
-
-const handleSaveVoucher = async (data: any) => {
-  try {
-    if (editingVoucher) {
-      await adminAPI.updateVoucher(editingVoucher.VOUCHER_ID, data);
-
-      showToast("Cập nhật mã giảm giá thành công", "success");
-    } else {
-      await adminAPI.createVoucher(data);
-
-      showToast("Thêm mã giảm giá thành công", "success");
-    }
-
-    setIsVoucherModalOpen(false);
+  const handleAddVoucher = () => {
     setEditingVoucher(null);
+    setIsVoucherModalOpen(true);
+  };
 
-    fetchVouchers();
-  } catch (err: any) {
-    showToast(err.message || "Lỗi khi lưu", "error");
-  }
-};
+  const handleEditVoucher = (voucher: any) => {
+    setEditingVoucher(voucher);
+    setIsVoucherModalOpen(true);
+  };
 
-const handleDeleteVoucher = async (id: number) => {
-  if (!confirm("Bạn có chắc muốn xóa mã giảm giá?")) return;
+  const handleSaveVoucher = async (data: any) => {
+    try {
+      if (editingVoucher) {
+        await adminAPI.updateVoucher(editingVoucher.VOUCHER_ID, data);
 
-  try {
-    await adminAPI.deleteVoucher(id);
+        showToast("Cập nhật mã giảm giá thành công", "success");
+      } else {
+        await adminAPI.createVoucher(data);
 
-    showToast("Xóa thành công", "success");
+        showToast("Thêm mã giảm giá thành công", "success");
+      }
 
-    fetchVouchers();
-  } catch (err: any) {
-    showToast(err.message || "Lỗi khi xóa", "error");
-  }
-};
+      setIsVoucherModalOpen(false);
+      setEditingVoucher(null);
+
+      fetchVouchers();
+    } catch (err: any) {
+      showToast(err.message || "Lỗi khi lưu", "error");
+    }
+  };
+
+  const handleDeleteVoucher = async (id: number) => {
+    if (!confirm("Bạn có chắc muốn xóa mã giảm giá?")) return;
+
+    try {
+      await adminAPI.deleteVoucher(id);
+
+      showToast("Xóa thành công", "success");
+
+      fetchVouchers();
+    } catch (err: any) {
+      showToast(err.message || "Lỗi khi xóa", "error");
+    }
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-slate-100">
@@ -305,27 +480,22 @@ const handleDeleteVoucher = async (id: number) => {
 
         <main className="px-8 py-6">
           {activeTab === "dashboard" && (
-
-<>
-    {/* KPI */}
-{/* 
+            <>
+              {/* KPI */}
+              {/* 
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
 
         ...
 
     </div> */}
 
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <RevenueChart orders={orders} />
 
-        <RevenueChart orders={orders} />
-
-        <OrderStatusChart orders={orders} />
-
-    </div>
-
-</>
-
-)}
+                <OrderStatusChart orders={orders} />
+              </div>
+            </>
+          )}
           {/* Toàn bộ Products / Accounts / Orders để ở đây */}
 
           {/* Products Tab */}
@@ -369,7 +539,24 @@ const handleDeleteVoucher = async (id: number) => {
               </div>
 
               {/* Actions */}
-              <div className="mb-6">
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    placeholder="🔍 Tìm mã hoặc tên sản phẩm..."
+                    value={productKeyword}
+                    onChange={(e) => setProductKeyword(e.target.value)}
+                    className="w-80 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+
+                  <button
+                    onClick={() => setProductKeyword("")}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg"
+                  >
+                    Reset
+                  </button>
+                </div>
+
                 <button
                   onClick={handleAddProduct}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition"
@@ -377,7 +564,6 @@ const handleDeleteVoucher = async (id: number) => {
                   + Thêm sản phẩm
                 </button>
               </div>
-
               {/* Products Table */}
               {productsLoading ? (
                 <div className="bg-white rounded-lg shadow p-8 text-center">
@@ -386,7 +572,7 @@ const handleDeleteVoucher = async (id: number) => {
                 </div>
               ) : (
                 <ProductTable
-                  products={products}
+                  products={filteredProducts}
                   onEdit={handleEditProduct}
                   onDelete={handleDeleteProduct}
                 />
@@ -474,157 +660,300 @@ const handleDeleteVoucher = async (id: number) => {
                   <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
                 </div>
               ) : (
-                <div className="bg-white rounded-lg shadow overflow-hidden">
-                  <table className="min-w-full">
-                    <thead className="bg-gray-100 border-b border-gray-200">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                          Mã ĐH
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                          Khách hàng
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                          Số SP
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                          Tổng tiền
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                          Trạng thái
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                          Ngày tạo
-                        </th>
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                          Hành động
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orders.length === 0 ? (
+                <>
+                  <div className="bg-white rounded-xl shadow p-5 mb-6">
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-500">
+                          Tổng doanh thu theo bộ lọc
+                        </p>
+                        <p className="text-3xl font-bold text-green-600">
+                          ₫{totalFilteredAmount.toLocaleString("vi-VN")}
+                        </p>
+                      </div>
+
+                      {(fromDate || toDate) && (
+                        <div className="text-right text-gray-600 text-sm">
+                          <div>Từ: {fromDate || "--/--/----"}</div>
+                          <div>Đến: {toDate || "--/--/----"}</div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                      <input
+                        placeholder="Mã đơn hoặc khách hàng..."
+                        value={searchKeyword}
+                        onChange={(e) => setSearchKeyword(e.target.value)}
+                        className="border rounded-lg px-3 py-2"
+                      />
+
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="border rounded-lg px-3 py-2"
+                      >
+                        <option value="ALL">Tất cả trạng thái</option>
+                        <option value="PENDING">Chờ xử lý</option>
+                        <option value="PROCESSING">Đang xử lý</option>
+                        <option value="COMPLETED">Hoàn thành</option>
+                        <option value="CANCELLED">Đã hủy</option>
+                      </select>
+
+                      <select
+                        value={paymentFilter}
+                        onChange={(e) => setPaymentFilter(e.target.value)}
+                        className="border rounded-lg px-3 py-2"
+                      >
+                        <option value="ALL">Thanh toán</option>
+                        <option value="COD">COD</option>
+                        <option value="ONLINE">Online</option>
+                      </select>
+
+                      <input
+                        type="date"
+                        value={fromDate}
+                        onChange={(e) => setFromDate(e.target.value)}
+                        className="border rounded-lg px-3 py-2"
+                      />
+
+                      <input
+                        type="date"
+                        value={toDate}
+                        onChange={(e) => setToDate(e.target.value)}
+                        className="border rounded-lg px-3 py-2"
+                      />
+
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        className="border rounded-lg px-3 py-2"
+                      >
+                        <option value="newest">Mới nhất</option>
+                        <option value="oldest">Cũ nhất</option>
+                        <option value="price_high">Giá cao → thấp</option>
+                        <option value="price_low">Giá thấp → cao</option>
+                      </select>
+                      <button
+                        onClick={handleResetFilter}
+                        className="bg-red-500 hover:bg-red-600 text-white rounded-lg px-4 py-2 transition"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-lg shadow overflow-hidden">
+                    <table className="min-w-full">
+                      <thead className="bg-gray-100 border-b border-gray-200">
                         <tr>
-                          <td
-                            colSpan={7}
-                            className="text-center py-8 text-gray-500"
-                          >
-                            Không có đơn hàng
-                          </td>
+                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                            Mã ĐH
+                          </th>
+                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                            Khách hàng
+                          </th>
+                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                            Số SP
+                          </th>
+                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                            Tổng tiền
+                          </th>
+                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                            Trạng thái
+                          </th>
+                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                            Ngày tạo
+                          </th>
+                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
+                            Hành động
+                          </th>
                         </tr>
-                      ) : (
-                        orders.map((order) => (
-                          <tr
-                            key={order.ORDER_ID}
-                            className="border-b border-gray-200 hover:bg-gray-50"
-                          >
-                            <td className="px-6 py-3 text-sm text-gray-900">
-                              #{order.ORDER_ID}
-                            </td>
-                            <td className="px-6 py-3 text-sm text-gray-900">
-                              {order.USERNAME}
-                            </td>
-                            <td className="px-6 py-3 text-sm text-gray-900">
-                              {order.ITEM_COUNT || 0}
-                            </td>
-                            <td className="px-6 py-3 text-sm font-semibold text-gray-900">
-                              ₫{order.TOTAL_AMOUNT?.toLocaleString() || 0}
-                            </td>
-                            <td className="px-6 py-3 text-sm">
-                              <span
-                                className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                  order.STATUS === "COMPLETED"
-                                    ? "bg-green-100 text-green-800"
-                                    : order.STATUS === "PROCESSING"
-                                      ? "bg-orange-100 text-orange-800"
-                                      : order.STATUS === "PENDING"
-                                        ? "bg-yellow-100 text-yellow-800"
-                                        : "bg-red-100 text-red-800"
-                                }`}
-                              >
-                                {order.STATUS === "COMPLETED"
-                                  ? "Hoàn thành"
-                                  : order.STATUS === "PROCESSING"
-                                    ? "Đang xử lý"
-                                    : order.STATUS === "PENDING"
-                                      ? "Chờ xử lý"
-                                      : "Hủy"}
-                              </span>
-                            </td>
-                            <td className="px-6 py-3 text-sm text-gray-600">
-                              {order.ORDER_DATE
-                                ? new Date(order.ORDER_DATE).toLocaleDateString(
-                                    "vi-VN",
-                                  )
-                                : "-"}
-                            </td>
-                            <td className="px-6 py-3 text-sm">
-                              <select
-                                value={order.STATUS}
-                                onChange={(e) =>
-                                  adminAPI
-                                    .updateOrderStatus(
-                                      order.ORDER_ID,
-                                      e.target.value,
-                                    )
-                                    .then(() => {
-                                      showToast(
-                                        "Cập nhật trạng thái thành công",
-                                        "success",
-                                      );
-                                      fetchOrders();
-                                    })
-                                    .catch((err) =>
-                                      showToast(
-                                        err.message ||
-                                          "Lỗi cập nhật trạng thái",
-                                        "error",
-                                      ),
-                                    )
-                                }
-                                className="px-3 py-1 border border-gray-300 rounded text-sm"
-                              >
-                                <option value="PENDING">Chờ xử lý</option>
-                                <option value="PROCESSING">Đang xử lý</option>
-                                <option value="COMPLETED">Hoàn thành</option>
-                                <option value="CANCELLED">Hủy</option>
-                              </select>
+                      </thead>
+                      <tbody>
+                        {filteredOrders.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={7}
+                              className="text-center py-8 text-gray-500"
+                            >
+                              Không có đơn hàng
                             </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                        ) : (
+                          filteredOrders.map((order) => (
+                            <tr
+                              key={order.ORDER_ID}
+                              className="border-b border-gray-200 hover:bg-gray-50"
+                            >
+                              <td className="px-6 py-3 text-sm text-gray-900">
+                                #{order.ORDER_ID}
+                              </td>
+                              <td className="px-6 py-3 text-sm text-gray-900">
+                                {order.USERNAME}
+                              </td>
+                              <td className="px-6 py-3 text-sm text-gray-900">
+                                {order.ITEM_COUNT || 0}
+                              </td>
+                              <td className="px-6 py-3 text-sm font-semibold text-gray-900">
+                                ₫{order.TOTAL_AMOUNT?.toLocaleString() || 0}
+                              </td>
+                              <td className="px-6 py-3 text-sm">
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                    order.STATUS === "COMPLETED"
+                                      ? "bg-green-100 text-green-800"
+                                      : order.STATUS === "PROCESSING"
+                                        ? "bg-orange-100 text-orange-800"
+                                        : order.STATUS === "PENDING"
+                                          ? "bg-yellow-100 text-yellow-800"
+                                          : "bg-red-100 text-red-800"
+                                  }`}
+                                >
+                                  {order.STATUS === "COMPLETED"
+                                    ? "Hoàn thành"
+                                    : order.STATUS === "PROCESSING"
+                                      ? "Đang xử lý"
+                                      : order.STATUS === "PENDING"
+                                        ? "Chờ xử lý"
+                                        : "Hủy"}
+                                </span>
+                              </td>
+                              <td className="px-6 py-3 text-sm text-gray-600">
+                                {order.ORDER_DATE
+                                  ? new Date(
+                                      order.ORDER_DATE,
+                                    ).toLocaleDateString("vi-VN")
+                                  : "-"}
+                              </td>
+                              <td className="px-6 py-3 text-sm">
+                                <select
+                                  value={order.STATUS}
+                                  onChange={(e) =>
+                                    adminAPI
+                                      .updateOrderStatus(
+                                        order.ORDER_ID,
+                                        e.target.value,
+                                      )
+                                      .then(() => {
+                                        showToast(
+                                          "Cập nhật trạng thái thành công",
+                                          "success",
+                                        );
+                                        fetchOrders();
+                                      })
+                                      .catch((err) =>
+                                        showToast(
+                                          err.message ||
+                                            "Lỗi cập nhật trạng thái",
+                                          "error",
+                                        ),
+                                      )
+                                  }
+                                  className="px-3 py-1 border border-gray-300 rounded text-sm"
+                                >
+                                  <option value="PENDING">Chờ xử lý</option>
+                                  <option value="PROCESSING">Đang xử lý</option>
+                                  <option value="COMPLETED">Hoàn thành</option>
+                                  <option value="CANCELLED">Hủy</option>
+                                </select>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </>
           )}
           {activeTab === "vouchers" && (
-  <>
-    <div className="flex justify-between items-center mb-6">
-      <h2 className="text-2xl font-bold">
-        Quản lý mã giảm giá
-      </h2>
+            <>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold">Quản lý mã giảm giá</h2>
 
-      <button
-        onClick={handleAddVoucher}
-        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg"
-      >
-        + Thêm mã
-      </button>
-    </div>
+                <button
+                  onClick={handleAddVoucher}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg"
+                >
+                  + Thêm mã
+                </button>
+              </div>
 
-    {voucherLoading ? (
-      <div className="bg-white rounded-lg shadow p-8 text-center">
-        Đang tải...
-      </div>
-    ) : (
-      <VoucherTable
-        vouchers={vouchers}
-        onEdit={handleEditVoucher}
-        onDelete={handleDeleteVoucher}
-      />
-    )}
-  </>
+              {voucherLoading ? (
+                <div className="bg-white rounded-lg shadow p-8 text-center">
+                  Đang tải...
+                </div>
+              ) : (
+                <VoucherTable
+                  vouchers={vouchers}
+                  onEdit={handleEditVoucher}
+                  onDelete={handleDeleteVoucher}
+                />
+              )}
+            </>
+          )}
+          {activeTab==="reviews" && (
+
+<>
+
+<h2 className="text-2xl font-bold mb-6">
+Quản lý đánh giá sản phẩm
+</h2>
+
+
+<ReviewTable
+
+reviews={reviews}
+
+onDelete={(id)=>{
+
+console.log("delete review",id)
+
+}}
+
+/>
+
+
+</>
+
+)}
+{activeTab==="questions" && (
+
+<>
+
+<h2 className="text-2xl font-bold mb-6">
+Quản lý hỏi đáp khách hàng
+</h2>
+
+
+<QuestionTable
+
+questions={questions}
+
+
+onAnswer={async(id,text)=>{
+
+
+await adminAPI.answerQuestion(id,text);
+
+
+showToast(
+"Đã trả lời câu hỏi",
+"success"
+);
+
+
+fetchQuestions();
+
+
+}}
+
+
+/>
+
+
+</>
+
 )}
         </main>
 
@@ -652,15 +981,15 @@ const handleDeleteVoucher = async (id: number) => {
           />
         )}
         {isVoucherModalOpen && (
-  <VoucherModal
-    voucher={editingVoucher}
-    onSave={handleSaveVoucher}
-    onClose={() => {
-      setEditingVoucher(null);
-      setIsVoucherModalOpen(false);
-    }}
-  />
-)}
+          <VoucherModal
+            voucher={editingVoucher}
+            onSave={handleSaveVoucher}
+            onClose={() => {
+              setEditingVoucher(null);
+              setIsVoucherModalOpen(false);
+            }}
+          />
+        )}
 
         {/* Toast */}
         {toast && (

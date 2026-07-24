@@ -12,25 +12,28 @@ export default function PaymentMethod({
   onChange,
 }: PaymentMethodProps) {
   const methods = [
-    {
-      id: 'cod',
-      name: 'Thanh toán khi nhận hàng (COD)',
-      icon: '🚚',
-      description: 'Thanh toán bằng tiền mặt khi nhận hàng',
-    },
-    {
-      id: 'vnpay',
-      name: 'VNPay',
-      icon: '💳',
-      description: 'Thanh toán qua cổng VNPay (giả lập)',
-    },
-    {
-      id: 'momo',
-      name: 'Momo',
-      icon: '📱',
-      description: 'Thanh toán qua Momo (giả lập)',
-    },
-  ];
+  {
+    id: "cod",
+    name: "Thanh toán khi nhận hàng (COD)",
+    icon: "🚚",
+    description: "Thanh toán bằng tiền mặt khi nhận hàng",
+    badge: "",
+  },
+  {
+    id: "vnpay",
+    name: "VNPay",
+    icon: "💳",
+    description: "Thanh toán nhanh, an toàn",
+    badge: "Khuyến nghị",
+  },
+  {
+    id: "momo",
+    name: "MoMo",
+    icon: "📱",
+    description: "Thanh toán bằng ví MoMo",
+    badge: "Ưu đãi",
+  },
+];
 
   return (
     <div className="space-y-4">
@@ -41,12 +44,13 @@ export default function PaymentMethod({
       <div className="space-y-3">
         {methods.map((method) => (
           <label
-            key={method.id}
-            className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition ${
-              selected === method.id
-                ? 'border-red-500 bg-red-50'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
+          key={method.id}
+  className={`relative flex items-center gap-5 p-5 rounded-2xl border-2 cursor-pointer transition-all duration-300
+  ${
+    selected === method.id
+      ? "border-red-500 bg-red-50 shadow-lg"
+      : "border-gray-200 hover:border-red-300 hover:shadow-md"
+  }`}
           >
             <input
               type="radio"

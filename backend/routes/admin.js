@@ -354,5 +354,388 @@ router.delete('/users/:userId', async (req, res) => {
     });
   }
 });
+/**
+ * GET /api/admin/vouchers
+ */
+router.get("/vouchers", async (req, res) => {
+  try {
+    const result = await executeQuery(
+      `
+      SELECT
+        VOUCHER_ID,
+        CODE,
+        DISCOUNT_VALUE,
+        DISCOUNT_TYPE,
+        QUANTITY,
+        START_DATE,
+        END_DATE,
+        STATUS
+      FROM VOUCHERS
+      ORDER BY VOUCHER_ID DESC
+      `,
+      {}
+    );
 
+    res.json({
+      success: true,
+      data: result.rows || [],
+    });
+  } catch (error) {
+    console.error("[VOUCHER ERROR]", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+/**
+ * POST /api/admin/vouchers
+ */
+router.post("/vouchers", async (req, res) => {
+  try {
+    const {
+      CODE,
+      DISCOUNT_VALUE,
+      DISCOUNT_TYPE,
+      QUANTITY,
+      START_DATE,
+      END_DATE,
+      STATUS,
+    } = req.body;
+
+    await executeUpdate(
+      `
+      INSERT INTO VOUCHERS
+      (
+        CODE,
+        DISCOUNT_VALUE,
+        DISCOUNT_TYPE,
+        QUANTITY,
+        START_DATE,
+        END_DATE,
+        STATUS
+      )
+
+      VALUES
+      (
+        :CODE,
+        :DISCOUNT_VALUE,
+        :DISCOUNT_TYPE,
+        :QUANTITY,
+        TO_DATE(:START_DATE,'YYYY-MM-DD'),
+        TO_DATE(:END_DATE,'YYYY-MM-DD'),
+        :STATUS
+      )
+      `,
+      {
+        CODE,
+        DISCOUNT_VALUE,
+        DISCOUNT_TYPE,
+        QUANTITY,
+        START_DATE,
+        END_DATE,
+        STATUS,
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Thêm mã giảm giá thành công",
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+/**
+ * PUT /api/admin/vouchers/:id
+ */
+router.put("/vouchers/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      CODE,
+      DISCOUNT_VALUE,
+      DISCOUNT_TYPE,
+      QUANTITY,
+      START_DATE,
+      END_DATE,
+      STATUS,
+    } = req.body;
+
+    await executeUpdate(
+      `
+      UPDATE VOUCHERS
+      SET
+        CODE=:CODE,
+        DISCOUNT_VALUE=:DISCOUNT_VALUE,
+        DISCOUNT_TYPE=:DISCOUNT_TYPE,
+        QUANTITY=:QUANTITY,
+        START_DATE=TO_DATE(:START_DATE,'YYYY-MM-DD'),
+        END_DATE=TO_DATE(:END_DATE,'YYYY-MM-DD'),
+        STATUS=:STATUS
+      WHERE VOUCHER_ID=:ID
+      `,
+      {
+        CODE,
+        DISCOUNT_VALUE,
+        DISCOUNT_TYPE,
+        QUANTITY,
+        START_DATE,
+        END_DATE,
+        STATUS,
+        ID: id,
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Cập nhật thành công",
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+/**
+ * DELETE /api/admin/vouchers/:id
+ */
+router.delete("/vouchers/:id", async (req, res) => {
+  try {
+    await executeUpdate(
+      `
+      DELETE FROM VOUCHERS
+      WHERE VOUCHER_ID=:ID
+      `,
+      {
+        ID: req.params.id,
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Đã xóa",
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+// ===============================
+// GET ALL QUESTIONS
+// ===============================
+router.get("/questions", async(req,res)=>{
+
+try{
+
+const result = await executeQuery(`
+SELECT
+q.QUESTION_ID,
+q.MASP,
+sp.TENSP,
+u.USERNAME,
+q.QUESTION_TEXT,
+q.ANSWER_TEXT,
+q.STATUS,
+q.CREATED_AT
+
+FROM CUSTOMER_QUESTION q
+
+JOIN USERS u
+ON q.USER_ID=u.USER_ID
+
+JOIN SANPHAM sp
+ON q.MASP=sp.MASP
+
+ORDER BY q.CREATED_AT DESC
+
+`);
+
+
+res.json({
+success:true,
+data:result.rows
+});
+
+
+}
+catch(err){
+
+res.status(500).json({
+success:false,
+message:err.message
+});
+
+}
+
+
+});
+// ===============================
+// ANSWER QUESTION
+// ===============================
+router.put("/questions/:id",async(req,res)=>{
+
+try{
+
+const {
+answer
+}=req.body;
+
+
+await executeUpdate(
+`
+UPDATE CUSTOMER_QUESTION
+
+SET
+ANSWER_TEXT=:answer,
+STATUS='ANSWERED'
+
+WHERE QUESTION_ID=:id
+`,
+{
+answer,
+id:req.params.id
+}
+);
+
+
+res.json({
+
+success:true,
+message:"Đã trả lời"
+
+});
+
+
+}
+catch(err){
+
+res.status(500).json({
+success:false,
+message:err.message
+});
+
+}
+
+});
+// ===============================
+// GET REVIEWS
+// ===============================
+router.get("/reviews",async(req,res)=>{
+
+
+try{
+
+
+const result =
+await executeQuery(`
+SELECT
+
+r.REVIEW_ID,
+r.MASP,
+sp.TENSP,
+u.USERNAME,
+r.RATING,
+r.COMMENT_TEXT,
+r.STATUS,
+r.CREATED_AT
+
+
+FROM PRODUCT_REVIEW r
+
+JOIN USERS u
+ON r.USER_ID=u.USER_ID
+
+
+JOIN SANPHAM sp
+ON r.MASP=sp.MASP
+
+
+ORDER BY r.CREATED_AT DESC
+
+`);
+
+
+res.json({
+
+success:true,
+data:result.rows
+
+});
+
+
+}
+catch(err){
+
+res.status(500).json({
+
+success:false,
+message:err.message
+
+});
+
+}
+
+
+});
+// ===============================
+// HIDE REVIEW
+// ===============================
+
+router.put("/reviews/:id",async(req,res)=>{
+
+
+try{
+
+
+await executeUpdate(
+`
+UPDATE PRODUCT_REVIEW
+
+SET STATUS='HIDDEN'
+
+WHERE REVIEW_ID=:id
+`,
+{
+id:req.params.id
+}
+);
+
+
+res.json({
+
+success:true,
+message:"Đã ẩn đánh giá"
+
+});
+
+
+}
+catch(err){
+
+res.status(500).json({
+
+success:false,
+message:err.message
+
+});
+
+}
+
+
+});
 module.exports = router;
