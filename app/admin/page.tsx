@@ -651,8 +651,8 @@ export default function AdminDashboard() {
 
               <ReviewTable
                 reviews={reviews}
-                onDelete={(id) => {
-                  console.log("delete review", id);
+                onToggleStatus={(id, status) => {
+                  console.log(id, status);
                 }}
               />
             </>
