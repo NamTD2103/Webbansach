@@ -16,13 +16,18 @@ router.get('/', async (req, res) => {
     const offset = (page - 1) * limit;
 
     const query = `
-      SELECT MASP, TENSP, GIABAN, SOLUONGTON,
-             HINHANH AS IMAGE_URL,
-             MOTA AS DESCRIPTION,
-             NVL(MANCC,'') AS MANCC
-      FROM SANPHAM
-      ORDER BY TENSP
-      OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
+      SELECT
+    MASP,
+    TENSP,
+    GIABAN,
+    SOLUONGTON,
+    HINHANH AS IMAGE_URL,
+    MOTA AS DESCRIPTION,
+    NVL(MANCC,'') AS MANCC,
+    MADM AS CAT_ID
+FROM SANPHAM
+ORDER BY TENSP
+OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY
     `;
 
     const [data, count] = await Promise.all([

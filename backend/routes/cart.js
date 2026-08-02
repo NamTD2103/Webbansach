@@ -129,6 +129,7 @@ router.get('/:userId', async (req, res) => {
         sp.TENSP, 
         sp.HINHANH AS IMAGE_URL, 
         sp.GIABAN, 
+        sp.SOLUONGTON,
         ci.SOLUONG,
         (ci.SOLUONG * sp.GIABAN) AS TOTAL_PRICE
       FROM CART_ITEM ci
@@ -200,5 +201,130 @@ router.delete('/item/:userId/:masp', async (req, res) => {
     });
   }
 });
+/**
+ * DELETE /api/cart/clear/:userId
+ * Xóa toàn bộ giỏ hàng sau khi đặt hàng thành công
+ */
+router.delete("/clear/:userId", async (req, res) => {
+  try {
 
+    const { userId } = req.params;
+
+    // Lấy cart
+    const cart = await executeQuery(
+      `
+      SELECT CART_ID
+      FROM CART
+      WHERE USER_ID = :userId
+      `,
+      { userId }
+    );
+
+    if (!cart.rows.length) {
+      return res.json({
+        success: true,
+        message: "Giỏ hàng trống"
+      });
+    }
+
+    const cartId = cart.rows[0].CART_ID;
+
+    // Xóa toàn bộ item
+    await executeUpdate(
+      `
+      DELETE FROM CART_ITEM
+      WHERE CART_ID = :cartId
+      `,
+      { cartId }
+    );
+
+    res.json({
+      success: true,
+      message: "Đã xóa giỏ hàng"
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
+  }
+});
+/**
+ * PUT /api/cart/update
+ * Update quantity in cart
+ */
+router.put("/update", async (req, res) => {
+  try {
+    const { userId, masp, soluong } = req.body;
+
+    if (!userId || !masp || soluong == null) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu dữ liệu"
+      });
+    }
+
+    // Kiểm tra tồn kho
+    const product = await executeQuery(
+      `SELECT SOLUONGTON
+       FROM SANPHAM
+       WHERE MASP = :masp`,
+      { masp }
+    );
+
+    if (product.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy sản phẩm"
+      });
+    }
+
+    const stock = product.rows[0].SOLUONGTON;
+
+    if (soluong > stock) {
+      return res.status(400).json({
+        success: false,
+        message: `Chỉ còn ${stock} sản phẩm`
+      });
+    }
+
+    await executeUpdate(
+      `
+      UPDATE CART_ITEM
+      SET SOLUONG = :soluong
+      WHERE MASP = :masp
+      AND CART_ID = (
+          SELECT CART_ID
+          FROM CART
+          WHERE USER_ID = :userId
+      )
+      `,
+      {
+        soluong,
+        masp,
+        userId
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Đã cập nhật giỏ hàng"
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
+  }
+});
 module.exports = router;

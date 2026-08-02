@@ -1,13 +1,30 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { productAPI, cartAPI, Product, authAPI } from '@/lib/api';
+import { 
+  useState, 
+  useEffect 
+} from "react";
+
+import Link from "next/link";
+
 import {
-    toggleWishlistItem,
-    isWishlisted
-} from '@/lib/userExperience';
+  useParams
+} from "next/navigation";
+import QuestionSection from "@/components/product/QuestionSection";
+import ProductReviews from "@/components/product/ProductReviews";
+import {
+  productAPI,
+  cartAPI,
+  Product,
+  authAPI
+} from "@/lib/api";
+
+
+import {
+  toggleWishlistItem,
+  isWishlisted,
+  addGuestCartItem
+} from "@/lib/userExperience";
 
 function ProductSkeleton() {
   return (
@@ -24,9 +41,8 @@ function ProductSkeleton() {
 
 export default function ProductDetail() {
   const params = useParams();
-  const router = useRouter();
   const productId = params.id as string;
-
+const currentUser = authAPI.getCurrentUser();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +50,7 @@ export default function ProductDetail() {
   const [addingCart, setAddingCart] = useState(false);
   const [cartSuccess, setCartSuccess] = useState(false);
   const [favorite, setFavorite] = useState(false);
+  
 
   useEffect(() => {
     if (productId) fetchProduct();
@@ -47,7 +64,9 @@ export default function ProductDetail() {
 
       const response = await productAPI.getById(productId);
       setProduct(response.data || null);
-      setFavorite(isWishlisted(productId));
+      setFavorite(
+ isWishlisted(productId)
+);
     } catch (err: any) {
       console.error('[PRODUCT DETAIL ERROR]', err);
       setError(err.message || 'Failed to load product');
@@ -57,37 +76,91 @@ export default function ProductDetail() {
     }
   };
 
-  const handleAddToCart = async () => {
-  try {
-    if (!product || product.SOLUONGTON === 0) return;
+  const handleAddToCart = async()=>{
 
-    if (quantity > product.SOLUONGTON) {
-      alert(`Chỉ còn ${product.SOLUONGTON} sản phẩm!`);
-      return;
-    }
+try{
 
-    setAddingCart(true);
+if(!product)
+return;
 
-    const currentUser = authAPI.getCurrentUser() || {
-      userId: 9999,
-      username: "guest",
-    };
 
-    await cartAPI.addToCart(
-      currentUser.userId,
-      product.MASP,
-      quantity
-    );
+if(quantity > product.SOLUONGTON){
 
-    setCartSuccess(true);
-    setTimeout(() => setCartSuccess(false), 2000);
-    setQuantity(1);
+alert(
+`Chỉ còn ${product.SOLUONGTON} sản phẩm`
+);
 
-  } catch (err: any) {
-    alert(err.message || "Failed to add to cart");
-  } finally {
-    setAddingCart(false);
-  }
+return;
+
+}
+
+
+setAddingCart(true);
+
+
+
+const user =
+authAPI.getCurrentUser();
+
+
+
+if(!user){
+
+// khách chưa đăng nhập
+
+addGuestCartItem(
+ product,
+ quantity
+);
+
+
+}else{
+
+
+await cartAPI.addToCart(
+ user.userId,
+ product.MASP,
+ quantity
+);
+
+
+}
+
+
+
+setCartSuccess(true);
+
+
+setTimeout(()=>{
+
+setCartSuccess(false);
+
+},2000);
+
+
+
+setQuantity(1);
+
+
+
+}
+
+catch(err:any){
+
+alert(
+err.message ||
+"Không thể thêm giỏ hàng"
+);
+
+
+}
+
+finally{
+
+setAddingCart(false);
+
+}
+
 };
 
   const handleWishlistToggle = () => {
@@ -101,9 +174,55 @@ export default function ProductDetail() {
       <div className="min-h-screen bg-gray-50">
         <header className="bg-white shadow-sm">
           <div className="max-w-7xl mx-auto px-4 py-4">
-            <Link href="/" className="text-2xl font-bold text-red-600">
-              📚 WebBanSach
-            </Link>
+            <Link 
+href="/"
+className="
+flex
+items-center
+gap-3
+"
+>
+
+<div
+className="
+w-12
+h-12
+rounded-xl
+bg-gradient-to-r
+from-red-500
+to-orange-500
+flex
+items-center
+justify-center
+text-2xl
+"
+>
+📚
+</div>
+
+
+<div>
+
+<h1
+className="
+font-black
+text-2xl
+text-red-500
+"
+>
+Cloudy Book
+</h1>
+
+
+<p className="text-xs text-gray-500">
+Read • Learn • Grow
+</p>
+
+
+</div>
+
+
+</Link>
           </div>
         </header>
         <main className="max-w-6xl mx-auto px-4 py-12">
@@ -295,6 +414,20 @@ export default function ProductDetail() {
             )}
           </div>
         </div>
+
+
+        {/* HỎI ĐÁP SẢN PHẨM */}
+
+        <QuestionSection
+          userId={currentUser?.userId || 0}
+          masp={product.MASP}
+        />
+        <ProductReviews
+  masp={product.MASP}
+  userId={currentUser?.userId}
+/>
+
+
       </main>
     </div>
   );

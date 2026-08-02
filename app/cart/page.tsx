@@ -1,20 +1,70 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { cartAPI, orderAPI, authAPI, CartItem } from '@/lib/api';
-import Footer from '@/components/Footer';
-import { getGuestCart, removeGuestCartItem, saveGuestCart, updateGuestCartItem } from '@/lib/userExperience';
+import { useState, useEffect } from "react";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+import { cartAPI, authAPI, CartItem } from "@/lib/api";
+
+import Footer from "@/components/Footer";
+
+import {
+  getGuestCart,
+  removeGuestCartItem,
+  updateGuestCartItem,
+  saveGuestCart,
+} from "@/lib/userExperience";
 
 function CartSkeleton() {
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 animate-pulse">
-      <div className="flex gap-4">
-        <div className="w-20 h-20 bg-gray-200 rounded"></div>
-        <div className="flex-1 space-y-2">
-          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+    <div
+      className="
+bg-white
+rounded-lg
+shadow
+p-4
+animate-pulse
+"
+    >
+      <div
+        className="
+flex
+gap-4
+"
+      >
+        <div
+          className="
+w-20
+h-20
+bg-gray-200
+rounded
+"
+        />
+
+        <div
+          className="
+flex-1
+space-y-2
+"
+        >
+          <div
+            className="
+h-4
+bg-gray-200
+rounded
+w-3/4
+"
+          />
+
+          <div
+            className="
+h-4
+bg-gray-200
+rounded
+w-1/2
+"
+          />
         </div>
       </div>
     </div>
@@ -23,275 +73,594 @@ function CartSkeleton() {
 
 export default function Cart() {
   const router = useRouter();
+
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [checkingOut, setCheckingOut] = useState(false);
+
+  const [error, setError] = useState("");
+
   const [user, setUser] = useState<any>(null);
-  const [guestCart, setGuestCart] = useState<any[]>([]);
 
- useEffect(() => {
-  let currentUser = authAPI.getCurrentUser();
+  const [checkingOut, setCheckingOut] = useState(false);
 
-  // Nếu chưa đăng nhập thì dùng tài khoản guest
-  if (!currentUser) {
-    currentUser = {
-      userId: 9999,
-      username: "guest",
-      fullname: "Khách vãng lai",
-      role: "USER",
-    };
-  }
+  useEffect(() => {
+    const currentUser = authAPI.getCurrentUser();
 
-  setUser(currentUser);
-  fetchCart(currentUser.userId);
-}, []);
+    setUser(currentUser);
 
-  const fetchCart = async (userId: number) => {
+    if (currentUser) {
+      loadUserCart(currentUser.userId);
+    } else {
+      const guest = getGuestCart();
+
+      setCartItems(guest as CartItem[]);
+
+      setLoading(false);
+    }
+  }, []);
+
+  // =============================
+  // LOAD USER CART
+  // =============================
+
+  const loadUserCart = async (userId: number) => {
     try {
       setLoading(true);
-      setError(null);
-      console.log('[CART] Fetching cart for user:', userId);
-      const response = await cartAPI.getCart(userId);
-      setCartItems(response.data || []);
+
+      const res = await cartAPI.getCart(userId);
+
+      setCartItems(res.data || []);
     } catch (err) {
-      console.error('[CART ERROR]', err);
-      setError('Failed to load cart');
+      console.error(err);
+
+      setError("Không thể tải giỏ hàng");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRemoveItem = async (masp: string) => {
-  try {
-  await cartAPI.removeFromCart(user.userId, masp);
-  fetchCart(user.userId);
-} catch (err) {
-  console.error(err);
-}
+  // =============================
+  // REMOVE ITEM
+  // =============================
 
+  const handleRemoveItem = async (masp: string) => {
     try {
-      console.log('[CART] Removing item:', masp);
-      await cartAPI.removeFromCart(user.userId, masp);
-      await fetchCart(user.userId);
+      if (user) {
+        await cartAPI.removeFromCart(user.userId, masp);
+
+        await loadUserCart(user.userId);
+      } else {
+        const updated = removeGuestCartItem(masp);
+
+        setCartItems(updated as CartItem[]);
+      }
     } catch (err) {
-      console.error('[CART ERROR]', err);
-      alert('Failed to remove item');
+      alert("Xóa sản phẩm thất bại");
     }
   };
 
-  const handleQuantityChange = (masp: string, nextQuantity: number) => {
-    if (!user) {
-      const next = updateGuestCartItem(masp, nextQuantity);
-      setCartItems(next as CartItem[]);
-      setGuestCart(next);
+  // =============================
+  // UPDATE QUANTITY
+  // =============================
+
+  const handleQuantityChange = async (item: CartItem, quantity: number) => {
+    if (quantity < 1) return;
+
+    const max = item.SOLUONGTON;
+
+    if (quantity > max) {
+      alert(`Chỉ còn ${max} sản phẩm`);
       return;
     }
+
+    if (user) {
+      try {
+        await cartAPI.updateQuantity(user.userId, item.MASP, quantity);
+
+        await loadUserCart(user.userId);
+      } catch (err: any) {
+        alert(err.message);
+      }
+    } else {
+      const updated = updateGuestCartItem(item.MASP, quantity);
+
+      setCartItems(updated as CartItem[]);
+    }
   };
 
- const handleCheckout = () => {
+  // =============================
+  // CHECKOUT
+  // =============================
 
-  if(cartItems.length === 0){
-    alert("Giỏ hàng trống");
-    return;
-  }
+  const handleCheckout = () => {
+    if (cartItems.length === 0) {
+      alert("Giỏ hàng trống");
 
+      return;
+    }
 
-  localStorage.setItem(
-    "cart",
-    JSON.stringify(cartItems)
+    localStorage.setItem("guestCart", JSON.stringify(cartItems));
+
+    router.push("/checkout");
+  };
+
+  const totalAmount = cartItems.reduce(
+    (sum, item) => sum + item.GIABAN * (item.SOLUONG || 1),
+
+    0,
   );
 
-
-  router.push("/checkout");
-};
-  const totalAmount = cartItems.reduce((sum, item) => sum + (item.TOTAL_PRICE || 0), 0);
-
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="text-2xl font-bold text-red-500">
-            📚 CloudyInSouth.com
+    <div
+      className="
+min-h-screen
+bg-gray-100
+"
+    >
+      <header
+        className="
+bg-white
+shadow
+"
+      >
+        <div
+          className="
+max-w-7xl
+mx-auto
+px-4
+py-4
+flex
+justify-between
+"
+        >
+          <Link
+            href="/"
+            className="
+text-2xl
+font-bold
+text-red-500
+"
+          >
+            📚 Cloudy Book
           </Link>
-          <div className="flex gap-4">
+
+          <div
+            className="
+flex
+gap-3
+"
+          >
             <Link
               href="/"
-              className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 transition"
+              className="
+px-4
+py-2
+border
+rounded
+"
             >
-              Tiếp tục mua sắm
+              Tiếp tục mua
             </Link>
-            <button
-              onClick={() => authAPI.logout()}
-              className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
-            >
-              Đăng xuất
-            </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Breadcrumb */}
-        <div className="mb-6 text-gray-600">
-          <Link href="/" className="hover:text-red-500">Trang chủ</Link>
-          <span className="mx-2">/</span>
-          <span>Giỏ hàng</span>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Cart Items */}
-          <div className="lg:col-span-2">
-            <h1 className="text-3xl font-bold mb-6">Giỏ hàng</h1>
-
-            {error && (
-              <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-                ❌ {error}
-              </div>
-            )}
-
-            {loading && (
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <CartSkeleton key={i} />
-                ))}
-              </div>
-            )}
-
-            {!loading && cartItems.length === 0 && (
-              <div className="bg-white rounded-lg shadow-md p-12 text-center">
-                <p className="text-2xl text-gray-500 mb-4">🛒</p>
-                <p className="text-gray-500 text-lg mb-6">Giỏ hàng của bạn đang trống</p>
-                <Link
-                  href="/"
-                  className="inline-block px-6 py-3 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-                >
-                  Tiếp tục mua sắm
-                </Link>
-              </div>
-            )}
-
-            {!loading && cartItems.length > 0 && (
-              <div className="space-y-4">
-                {cartItems.map((item) => (
-                  <div
-                    key={item.MASP}
-                    className="bg-white rounded-lg shadow-md p-4 flex gap-4 hover:shadow-lg transition"
-                  >
-                    {/* Product Image */}
-                    <div className="w-24 h-24 bg-gray-200 rounded flex-shrink-0 overflow-hidden">
-                      {item.IMAGE_URL ? (
-                        <img
-                          src={item.IMAGE_URL}
-                          alt={item.TENSP}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                          <span className="text-2xl">📖</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Product Info */}
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{item.TENSP}</h3>
-                      <p className="text-gray-600 text-sm mb-2">ID: {item.MASP}</p>
-                      <p className="text-red-500 font-bold">
-                        ₫{item.GIABAN?.toLocaleString('vi-VN') || '0'}
-                      </p>
-                    </div>
-
-                    {/* Quantity */}
-                    <div className="flex flex-col items-end justify-between">
-                      <div className="text-right">
-                        <div className="flex items-center gap-2 mb-2">
-                          <button onClick={() => handleQuantityChange(item.MASP, (item.SOLUONG || 1) - 1)} className="w-8 h-8 rounded-full border border-gray-300">−</button>
-                          <span className="min-w-8 text-center font-semibold">{item.SOLUONG}</span>
-                          <button onClick={() => handleQuantityChange(item.MASP, (item.SOLUONG || 1) + 1)} className="w-8 h-8 rounded-full border border-gray-300">+</button>
-                        </div>
-                        <p className="font-bold text-lg">₫{item.TOTAL_PRICE?.toLocaleString('vi-VN') || '0'}</p>
-                      </div>
-
-                      <button onClick={() => handleRemoveItem(item.MASP)} className="text-red-500 hover:text-red-700 text-sm font-semibold">Xóa</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+      <main
+        className="
+max-w-7xl
+mx-auto
+px-4
+py-8
+"
+      >
+        <h1
+          className="
+text-3xl
+font-bold
+mb-6
+"
+        >
+          🛒 Giỏ hàng
+        </h1>
+        {error && (
+          <div
+            className="
+bg-red-100
+border
+border-red-400
+text-red-700
+p-4
+rounded
+mb-6
+"
+          >
+            ❌ {error}
           </div>
+        )}
 
-          {/* Order Summary */}
-          {!loading && cartItems.length > 0 && (
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg shadow-md p-6 sticky top-4">
-                <h2 className="text-2xl font-bold mb-6">Tóm tắt đơn hàng</h2>
+        {loading && (
+          <div
+            className="
+space-y-4
+"
+          >
+            {[1, 2, 3].map((i) => (
+              <CartSkeleton key={i} />
+            ))}
+          </div>
+        )}
 
-                <div className="space-y-4 mb-6 pb-6 border-b">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Tạm tính</span>
-                    <span className="font-semibold">
-                      ₫{totalAmount.toLocaleString('vi-VN')}
+        {!loading && cartItems.length === 0 && (
+          <div
+            className="
+bg-white
+rounded-xl
+shadow
+p-12
+text-center
+"
+          >
+            <div
+              className="
+text-6xl
+mb-4
+"
+            >
+              🛒
+            </div>
+
+            <h2
+              className="
+text-xl
+font-bold
+mb-4
+"
+            >
+              Giỏ hàng đang trống
+            </h2>
+
+            <Link
+              href="/"
+              className="
+inline-block
+bg-orange-500
+text-white
+px-6
+py-3
+rounded-lg
+"
+            >
+              Mua sắm ngay
+            </Link>
+          </div>
+        )}
+
+        {!loading && cartItems.length > 0 && (
+          <div
+            className="
+grid
+grid-cols-1
+lg:grid-cols-3
+gap-8
+"
+          >
+            {/* ======================
+     PRODUCT LIST
+====================== */}
+
+            <div
+              className="
+lg:col-span-2
+space-y-4
+"
+            >
+              {cartItems.map((item) => (
+                <div
+                  key={item.MASP}
+                  className="
+bg-white
+rounded-xl
+shadow
+p-4
+flex
+gap-4
+"
+                >
+                  {/* IMAGE */}
+
+                  <div
+                    className="
+w-24
+h-24
+rounded
+overflow-hidden
+bg-gray-200
+flex-shrink-0
+"
+                  >
+                    {item.IMAGE_URL ? (
+                      <img
+                        src={item.IMAGE_URL}
+                        alt={item.TENSP}
+                        className="
+w-full
+h-full
+object-cover
+"
+                      />
+                    ) : (
+                      <div
+                        className="
+flex
+items-center
+justify-center
+h-full
+text-3xl
+"
+                      >
+                        📖
+                      </div>
+                    )}
+                  </div>
+
+                  {/* INFO */}
+
+                  <div
+                    className="
+flex-1
+"
+                  >
+                    <h3
+                      className="
+font-bold
+text-lg
+"
+                    >
+                      {item.TENSP}
+                    </h3>
+
+                    <p
+                      className="
+text-gray-500
+text-sm
+"
+                    >
+                      Mã:
+                      {item.MASP}
+                    </p>
+
+                    <p
+                      className="
+text-red-500
+font-bold
+mt-2
+"
+                    >
+                      ₫{item.GIABAN?.toLocaleString("vi-VN")}
+                    </p>
+                  </div>
+
+                  {/* QUANTITY */}
+
+                  <div
+                    className="
+flex
+flex-col
+items-end
+justify-between
+"
+                  >
+                    <div
+                      className="
+flex
+items-center
+gap-3
+"
+                    >
+                      <button
+                        onClick={() =>
+                          handleQuantityChange(
+                            item,
+
+                            item.SOLUONG - 1,
+                          )
+                        }
+                        className="
+w-8
+h-8
+border
+rounded-full
+"
+                      >
+                        -
+                      </button>
+
+                      <span
+                        className="
+font-bold
+"
+                      >
+                        {item.SOLUONG}
+                      </span>
+
+                      <button
+                        onClick={() =>
+                          handleQuantityChange(
+                            item,
+
+                            item.SOLUONG + 1,
+                          )
+                        }
+                        className="
+w-8
+h-8
+border
+rounded-full
+"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <p
+                      className="
+font-bold
+text-lg
+"
+                    >
+                      ₫{(item.GIABAN * item.SOLUONG).toLocaleString("vi-VN")}
+                    </p>
+
+                    <button
+                      onClick={() => handleRemoveItem(item.MASP)}
+                      className="
+text-red-500
+font-semibold
+text-sm
+"
+                    >
+                      Xóa
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ======================
+     SUMMARY
+====================== */}
+
+            <div>
+              <div
+                className="
+bg-white
+rounded-xl
+shadow
+p-6
+sticky
+top-5
+"
+              >
+                <h2
+                  className="
+text-2xl
+font-bold
+mb-6
+"
+                >
+                  Thanh toán
+                </h2>
+
+                <div
+                  className="
+space-y-4
+border-b
+pb-5
+"
+                >
+                  <div
+                    className="
+flex
+justify-between
+"
+                  >
+                    <span>Tạm tính</span>
+
+                    <b>₫{totalAmount.toLocaleString("vi-VN")}</b>
+                  </div>
+
+                  <div
+                    className="
+flex
+justify-between
+"
+                  >
+                    <span>Phí vận chuyển</span>
+
+                    <span
+                      className="
+text-green-600
+font-bold
+"
+                    >
+                      Miễn phí
                     </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Vận chuyển</span>
-                    <span className="font-semibold text-green-600">Miễn phí</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Thuế</span>
-                    <span className="font-semibold">₫0</span>
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center mb-6">
-                  <span className="text-xl font-bold">Tổng cộng</span>
-                  <span className="text-3xl font-bold text-red-500">
-                    ₫{totalAmount.toLocaleString('vi-VN')}
+                <div
+                  className="
+flex
+justify-between
+items-center
+my-6
+"
+                >
+                  <span
+                    className="
+text-xl
+font-bold
+"
+                  >
+                    Tổng
+                  </span>
+
+                  <span
+                    className="
+text-3xl
+font-bold
+text-red-500
+"
+                  >
+                    ₫{totalAmount.toLocaleString("vi-VN")}
                   </span>
                 </div>
 
                 <button
                   onClick={handleCheckout}
-                  disabled={checkingOut || cartItems.length === 0}
-                  className="w-full py-3 bg-orange-500 text-white font-bold rounded-lg hover:bg-orange-600 transition disabled:bg-gray-400 text-lg"
+                  disabled={checkingOut}
+                  className="
+w-full
+bg-orange-500
+hover:bg-orange-600
+text-white
+py-3
+rounded-xl
+font-bold
+text-lg
+disabled:bg-gray-400
+"
                 >
-                  {checkingOut ? '⏳ Processing...' : '💳 Thanh toán'}
+                  {checkingOut ? "Đang xử lý..." : "💳 Thanh toán"}
                 </button>
 
                 <Link
                   href="/"
-                  className="block text-center mt-4 py-2 text-blue-500 hover:text-blue-700 font-semibold"
+                  className="
+block
+text-center
+mt-5
+text-blue-500
+"
                 >
-                  Tiếp tục mua sắm
+                  ← Tiếp tục mua hàng
                 </Link>
-
-                {/* Promo Code (mock) */}
-                <div className="mt-6 pt-6 border-t">
-                  <label className="text-sm text-gray-600 block mb-2">
-                    Mã khuyến mãi
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Nhập mã"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
-                    />
-                    <button className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded text-sm font-semibold transition">
-                      Áp dụng
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </main>
 
-      {/* Footer */}
-      <footer className="bg-gray-800 text-white py-8 mt-12">
-       <Footer />
+      <footer
+        className="
+bg-gray-800
+text-white
+mt-12
+py-8
+"
+      >
+        <Footer />
       </footer>
     </div>
   );

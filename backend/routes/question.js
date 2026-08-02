@@ -38,23 +38,27 @@ await executeUpdate(
 `
 INSERT INTO CUSTOMER_QUESTION
 (
-QUESTION_ID,
-USER_ID,
-MASP,
-QUESTION_TEXT
+    QUESTION_ID,
+    USER_ID,
+    MASP,
+    QUESTION_TEXT,
+    STATUS,
+    CREATED_AT
 )
 VALUES
 (
-QUESTION_SEQ.NEXTVAL,
-:userId,
-:masp,
-:question
+    QUESTION_SEQ.NEXTVAL,
+    :p_userId,
+    :p_masp,
+    :p_question,
+    'PENDING',
+    SYSDATE
 )
 `,
 {
-userId,
-masp,
-question
+    p_userId: userId,
+    p_masp: masp,
+    p_question: question
 });
 
 
@@ -198,19 +202,14 @@ UPDATE CUSTOMER_QUESTION
 
 SET
 
-ANSWER_TEXT=:answer,
-
-STATUS='ANSWERED',
-
-ANSWERED_AT=SYSDATE
-
-
-WHERE QUESTION_ID=:id
-
+ANSWER_TEXT = :p_answer,
+STATUS = 'ANSWERED',
+ANSWERED_AT = SYSDATE
+WHERE QUESTION_ID = :p_id
 `,
 {
-answer,
-id:req.params.id
+    p_answer: answer,
+    p_id: req.params.id
 });
 
 

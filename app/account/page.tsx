@@ -12,6 +12,9 @@ import Sidebar from "@/components/account/Sidebar";
 import OrderList from "@/components/account/OrderList";
 import EditProfileModal from "@/components/account/EditProfileModal";
 import ReviewItem from "@/components/orders/ReviewItem";
+import PasswordModal from "@/components/account/PasswordModal";
+import LoyaltyCard from "./components/LoyaltyCard";
+import { loyaltyAPI } from "@/lib/api";
 // ================= TYPES =================
 interface UserProfile {
   userId: number;
@@ -47,24 +50,34 @@ export default function Account() {
 
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const [orders, setOrders] = useState<Order[]>([]);  
+  const [keyword, setKeyword] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [orders, setOrders] = useState<Order[]>([]);
 
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  
 
   const [cancelLoading, setCancelLoading] = useState(false);
 
   const [reorderLoading, setReorderLoading] = useState(false);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
-  
-
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+  const [passwordData, setPasswordData] = useState({
+    oldPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+  const [changingPassword, setChangingPassword] = useState(false);
   const [editData, setEditData] = useState({ email: "", fullname: "" });
   const [editing, setEditing] = useState(false);
+  const [showWishlist, setShowWishlist] = useState(false);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
 
   const [toast, setToast] = useState<{
     type: "success" | "error";
@@ -88,13 +101,19 @@ export default function Account() {
     }
 
     setUser(normalized);
+
     setWishlistItems(getWishlistItems());
+
     setEditData({
       email: normalized.email || "",
       fullname: normalized.fullname || "",
     });
 
     fetchOrders(normalized.userId);
+
+    // Lấy điểm tích lũy
+    loadLoyalty(normalized.userId);
+
     setLoading(false);
   }, [router]);
 
@@ -111,6 +130,37 @@ export default function Account() {
       setOrdersLoading(false);
     }
   }, []);
+  const loadLoyalty = async (userId: number) => {
+    try {
+      const result = await loyaltyAPI.getPoints(userId);
+
+      setLoyaltyPoints(result.points || 0);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  const handleRedeem = async (point: number) => {
+    if (!user) return;
+
+    const ok = confirm(`Bạn có chắc muốn đổi ${point} điểm lấy voucher?`);
+
+    if (!ok) return;
+
+    try {
+      const result = await loyaltyAPI.redeem(user.userId, point);
+
+      alert(
+        `🎉 Đổi điểm thành công!\n\n` +
+          `Mã voucher: ${result.voucher.code}\n` +
+          `Giảm: ${result.voucher.discount.toLocaleString()}đ`,
+      );
+
+      // Load lại điểm
+      loadLoyalty(user.userId);
+    } catch (err: any) {
+      showToast("error", err.message || "Không thể đổi điểm");
+    }
+  };
   const handleDetail = async (order: Order) => {
     try {
       const result = await orderAPI.getOrderDetail(order.ORDER_ID);
@@ -186,7 +236,6 @@ export default function Account() {
     }
   };
 
-
   // ===== TOAST =====
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
@@ -234,6 +283,49 @@ export default function Account() {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!user) return;
+
+    if (
+      !passwordData.oldPassword ||
+      !passwordData.newPassword ||
+      !passwordData.confirmPassword
+    ) {
+      return showToast("error", "Vui lòng nhập đầy đủ thông tin");
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      return showToast("error", "Mật khẩu xác nhận không khớp");
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      return showToast("error", "Mật khẩu mới tối thiểu 6 ký tự");
+    }
+
+    try {
+      setChangingPassword(true);
+
+      await authAPI.changePassword(user.userId, {
+        oldPassword: passwordData.oldPassword,
+
+        newPassword: passwordData.newPassword,
+      });
+
+      showToast("success", "Đổi mật khẩu thành công");
+
+      setShowPasswordModal(false);
+
+      setPasswordData({
+        oldPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+    } catch (err: any) {
+      showToast("error", err.message || "Đổi mật khẩu thất bại");
+    } finally {
+      setChangingPassword(false);
+    }
+  };
   // ===== LOGOUT =====
   const handleLogout = () => {
     if (!confirm("Đăng xuất?")) return;
@@ -277,6 +369,17 @@ export default function Account() {
       </div>
     );
   }
+  const filteredOrders = orders.filter((order) => {
+    // tìm kiếm
+    const matchKeyword =
+      order.ORDER_ID.toString().includes(searchKeyword) ||
+      order.STATUS.toLowerCase().includes(searchKeyword.toLowerCase());
+
+    // lọc trạng thái
+    const matchStatus = statusFilter === "ALL" || order.STATUS === statusFilter;
+
+    return matchKeyword && matchStatus;
+  });
 
   // ================= UI =================
   return (
@@ -309,6 +412,7 @@ export default function Account() {
           user={user}
           totalOrders={orders.length}
           wishlistCount={wishlistItems.length}
+          onWishlist={() => setShowWishlist(true)}
         />
 
         {/* Stats */}
@@ -316,25 +420,161 @@ export default function Account() {
           <AccountStats
             orders={orders.length}
             wishlist={wishlistItems.length}
+            loyaltyPoints={loyaltyPoints}
           />
         </div>
 
         {/* Content */}
         <div className="grid lg:grid-cols-[320px_1fr] gap-8 mt-8 items-start">
+          {/* Sidebar */}
           <Sidebar
+            userId={user.userId}
+            onWishlist={() => setShowWishlist(true)}
             onEdit={() => setShowEditModal(true)}
+            onChangePassword={() => setShowPasswordModal(true)}
             onLogout={handleLogout}
           />
 
-         <OrderList
-    orders={orders}
-    loading={ordersLoading}
-    onDetail={handleDetail}
-    onCancel={handleCancel}
-    onReorder={handleReorder}
-    onRepay={handleRepay}
-    onInvoice={handleInvoice}
-/>
+          {/* Nội dung bên phải */}
+          <div>
+            <LoyaltyCard points={loyaltyPoints} onRedeem={handleRedeem} />
+            {/* Search */}
+            <div className="bg-white rounded-xl p-5 shadow">
+              <input
+                type="text"
+                placeholder="Tìm theo mã đơn hoặc trạng thái..."
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                className="w-full border rounded-lg p-3"
+              />
+            </div>
+
+            {/* Filter */}
+            <div className="flex gap-3 flex-wrap mt-4 mb-6">
+              <button
+                onClick={() => setStatusFilter("ALL")}
+                className={`px-4 py-2 rounded-lg border ${
+                  statusFilter === "ALL" ? "bg-red-500 text-white" : ""
+                }`}
+              >
+                Tất cả
+              </button>
+
+              <button
+                onClick={() => setStatusFilter("PENDING")}
+                className={`px-4 py-2 rounded-lg border ${
+                  statusFilter === "PENDING" ? "bg-yellow-500 text-white" : ""
+                }`}
+              >
+                Chờ xác nhận
+              </button>
+
+              <button
+                onClick={() => setStatusFilter("PROCESSING")}
+                className={`px-4 py-2 rounded-lg border ${
+                  statusFilter === "PROCESSING" ? "bg-blue-500 text-white" : ""
+                }`}
+              >
+                Đang xử lý
+              </button>
+
+              <button
+                onClick={() => setStatusFilter("SHIPPED")}
+                className={`px-4 py-2 rounded-lg border ${
+                  statusFilter === "SHIPPED" ? "bg-purple-500 text-white" : ""
+                }`}
+              >
+                Đang giao
+              </button>
+
+              <button
+                onClick={() => setStatusFilter("DELIVERED")}
+                className={`px-4 py-2 rounded-lg border ${
+                  statusFilter === "DELIVERED" ? "bg-green-600 text-white" : ""
+                }`}
+              >
+                Đã giao
+              </button>
+
+              <button
+                onClick={() => setStatusFilter("CANCELLED")}
+                className={`px-4 py-2 rounded-lg border ${
+                  statusFilter === "CANCELLED" ? "bg-red-600 text-white" : ""
+                }`}
+              >
+                Đã hủy
+              </button>
+
+              <button
+                onClick={() => {
+                  setSearchKeyword("");
+                  setStatusFilter("ALL");
+                }}
+                className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
+              >
+                Reset
+              </button>
+            </div>
+
+            {/* Danh sách đơn */}
+            {showWishlist ? (
+              <div className="bg-white rounded-xl shadow p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold">❤️ Danh sách yêu thích</h2>
+
+                  <button
+                    onClick={() => setShowWishlist(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300"
+                  >
+                    Quay lại đơn hàng
+                  </button>
+                </div>
+
+                {wishlistItems.length === 0 ? (
+                  <div className="text-center py-10 text-gray-500">
+                    Chưa có sản phẩm yêu thích.
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {wishlistItems.map((item: any) => (
+                      <div
+                        key={item.MASP}
+                        className="border rounded-xl p-4 hover:shadow-lg transition"
+                      >
+                        <img
+                          src={item.IMAGE_URL}
+                          className="w-full h-52 object-cover rounded-lg"
+                        />
+
+                        <h3 className="font-bold mt-4">{item.TENSP}</h3>
+
+                        <p className="text-red-500 font-semibold mt-2">
+                          {item.GIABAN?.toLocaleString()} đ
+                        </p>
+
+                        <Link
+                          href={`/product/${item.MASP}`}
+                          className="inline-block mt-4 px-4 py-2 rounded-lg bg-red-500 text-white"
+                        >
+                          Xem sản phẩm
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <OrderList
+                orders={filteredOrders}
+                loading={ordersLoading}
+                onDetail={handleDetail}
+                onCancel={handleCancel}
+                onReorder={handleReorder}
+                onRepay={handleRepay}
+                onInvoice={handleInvoice}
+              />
+            )}
+          </div>
         </div>
       </main>
 
@@ -352,7 +592,19 @@ export default function Account() {
         }
         onSave={handleUpdateProfile}
       />
-
+      <PasswordModal
+        open={showPasswordModal}
+        data={passwordData}
+        loading={changingPassword}
+        onClose={() => setShowPasswordModal(false)}
+        onChange={(field, value) =>
+          setPasswordData((prev) => ({
+            ...prev,
+            [field]: value,
+          }))
+        }
+        onSave={handleChangePassword}
+      />
       {/* TOAST */}
       {toast && (
         <div className="fixed bottom-4 right-4 bg-black text-white px-4 py-2">
@@ -381,34 +633,29 @@ export default function Account() {
             </p>
 
             {selectedOrder.items?.map((item: any) => (
-  <div
-    key={item.ITEM_ID}
-    className="flex gap-4 border-b py-5"
-  >
-    <img
-      src={item.IMAGE_URL || "/images/no-image.png"}
-      className="w-20 h-20 rounded-lg object-cover"
-    />
+              <div key={item.ITEM_ID} className="flex gap-4 border-b py-5">
+                <img
+                  src={item.IMAGE_URL || "/images/no-image.png"}
+                  className="w-20 h-20 rounded-lg object-cover"
+                />
 
-    <div className="flex-1">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg">{item.TENSP}</h3>
 
-      <h3 className="font-semibold text-lg">
-        {item.TENSP}
-      </h3>
+                  <p className="text-gray-500">Số lượng: {item.SOLUONG}</p>
 
-      <p className="text-gray-500">
-        Số lượng: {item.SOLUONG}
-      </p>
-
-     <ReviewItem
-    userId={user.userId}
-    masp={item.MASP}
-    productName={item.TENSP}
-/>
-
-    </div>
-  </div>
-))}
+                  <ReviewItem
+                    userId={user.userId}
+                    orderId={selectedOrder.ORDER_ID}
+                    product={{
+                      MASP: item.MASP,
+                      TENSP: item.TENSP,
+                      IMAGE_URL: item.IMAGE_URL,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

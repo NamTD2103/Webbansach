@@ -26,18 +26,19 @@ export default function Login() {
 
       if (isLogin) {
         console.log('[LOGIN] Logging in...');
-        const response = await authAPI.login(username, password);
-        alert('✓ Login successful!');
-        
-        // Role-based redirect
-        const userRole = response.user?.role || 'USER';
-        console.log('[AUTH] User role:', userRole);
-        
-        if (userRole === 'ADMIN') {
-          router.push('/admin');
-        } else {
-          router.push('/account');
-        }
+       const response = await authAPI.login(username, password);
+
+if (!response.success) {
+    throw new Error(response.message || "Đăng nhập thất bại");
+}
+
+alert("✓ Login successful!");
+
+if (response.user.role === "ADMIN") {
+    router.push("/admin");
+} else {
+    router.push("/account");
+}
       } else {
         console.log('[REGISTER] Registering...');
         const response = await authAPI.register(username, password, email, role);

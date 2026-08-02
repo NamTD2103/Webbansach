@@ -2,20 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  XCircle,
-  Package,
-  Search,
-} from "lucide-react";
+import { XCircle, Package, Search } from "lucide-react";
 
 import { authAPI, orderAPI } from "@/lib/api";
 
 import OrderCard from "@/components/orders/OrderCard";
 import CancelOrderModal from "@/components/orders/CancelOrderModal";
-import ReviewModal from "@/components/orders/ReviewModal";
 import OrderTimeline from "@/components/orders/OrderTimeline";
 import LoadingSkeleton from "@/components/orders/LoadingSkeleton";
 import EmptyOrders from "@/components/orders/EmptyOrders";
+import ReviewModal from "@/components/review/ReviewModal";
+import QuestionSection from "@/components/product/QuestionSection";
 
 interface OrderItem {
   ITEM_ID: number;
@@ -45,7 +42,10 @@ export default function OrdersPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
 
   const [reviewOpen, setReviewOpen] = useState(false);
-
+  const [selectedProduct, setSelectedProduct] = useState<OrderItem | null>(
+    null,
+  );
+  const [reviewOrderId, setReviewOrderId] = useState<number | null>(null);
   const [trackingOpen, setTrackingOpen] = useState(false);
 
   const [search, setSearch] = useState("");
@@ -228,10 +228,7 @@ export default function OrdersPage() {
                   onReorder={() => handleReorder(order.ORDER_ID)}
                   onRepay={() => handleRepay(order.ORDER_ID)}
                   onInvoice={() => downloadInvoice(order.ORDER_ID)}
-                  onReview={() => {
-                    setSelectedOrder(order);
-                    setReviewOpen(true);
-                  }}
+                  onReview={() => {}}
                 />
               ))
             )}
@@ -251,18 +248,24 @@ export default function OrdersPage() {
 
       {/* REVIEW MODAL */}
 
-      {/* {reviewOpen && selectedOrder && (
+      {reviewOpen && selectedProduct && currentUser && reviewOrderId && (
         <ReviewModal
-          order={selectedOrder}
-          onClose={() => setReviewOpen(false)}
-          onSuccess={() => {
+          product={selectedProduct}
+          userId={currentUser.userId}
+          orderId={reviewOrderId}
+          onClose={() => {
             setReviewOpen(false);
-
-            loadOrders();
+            setSelectedProduct(null);
+            setReviewOrderId(null);
+          }}
+          onSuccess={async () => {
+            setReviewOpen(false);
+            setSelectedProduct(null);
+            setReviewOrderId(null);
+            await loadOrders();
           }}
         />
-      )} */}
-
+      )}
       {/* ORDER DETAIL / TRACKING */}
 
       {trackingOpen && selectedOrder && (
@@ -360,6 +363,40 @@ export default function OrdersPage() {
                     >
                       {item.PRICE.toLocaleString()}đ
                     </p>
+                    {selectedOrder.STATUS === "DELIVERED" && (
+  <>
+    <button
+      onClick={() => {
+        setSelectedProduct(item);
+        setReviewOrderId(selectedOrder.ORDER_ID);
+        setTrackingOpen(false);
+        setReviewOpen(true);
+      }}
+      className="
+        mt-3
+        px-4
+        py-2
+        bg-yellow-500
+        hover:bg-yellow-600
+        text-white
+        rounded-lg
+        text-sm
+        font-semibold
+      "
+    >
+      ⭐ Đánh giá
+    </button>
+
+    <div className="mt-4">
+      {currentUser && (
+  <QuestionSection
+    userId={currentUser.userId}
+    masp={item.MASP}
+  />
+)}
+    </div>
+  </>
+)}
                   </div>
                 </div>
               ))}
@@ -398,4 +435,3 @@ export default function OrdersPage() {
     </div>
   );
 }
-

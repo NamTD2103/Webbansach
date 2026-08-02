@@ -284,6 +284,26 @@ router.put('/orders/:orderId', async (req, res) => {
   try {
     const { orderId } = req.params;
     const { status } = req.body;
+    // Lấy trạng thái hiện tại của đơn
+const oldOrder = await executeQuery(
+`
+SELECT STATUS
+FROM ORDERS
+WHERE ORDER_ID = :orderId
+`,
+{
+    orderId
+}
+);
+
+if (!oldOrder.rows.length) {
+    return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy đơn hàng"
+    });
+}
+
+const oldStatus = oldOrder.rows[0].STATUS;
 
     if (!status) {
       return res.status(400).json({
@@ -308,6 +328,55 @@ router.put('/orders/:orderId', async (req, res) => {
     `;
 
     await executeUpdate(updateQuery, { orderId, status });
+    // =====================================
+// CỘNG ĐIỂM KHI ĐƠN HOÀN THÀNH
+// =====================================
+
+// =====================================
+// CỘNG ĐIỂM KHI ĐƠN HOÀN THÀNH
+// CHỈ CỘNG 1 LẦN
+// =====================================
+
+if (
+    oldStatus !== "COMPLETED" &&
+    status === "COMPLETED"
+) {
+
+    const orderResult = await executeQuery(
+    `
+    SELECT USER_ID, TOTAL_AMOUNT
+    FROM ORDERS
+    WHERE ORDER_ID = :orderId
+    `,
+    {
+        orderId
+    });
+
+    if (orderResult.rows.length) {
+
+        const order = orderResult.rows[0];
+
+        // 10.000đ = 1 điểm
+        const earnedPoints =
+            Math.floor(Number(order.TOTAL_AMOUNT) / 10000);
+
+        await executeUpdate(
+        `
+        UPDATE USERS
+        SET LOYALTY_POINTS =
+            NVL(LOYALTY_POINTS,0) + :points
+        WHERE USER_ID = :userId
+        `,
+        {
+            points: earnedPoints,
+            userId: order.USER_ID
+        });
+
+        console.log(
+            `[LOYALTY] User ${order.USER_ID} +${earnedPoints} points`
+        );
+    }
+}
 
     console.log(`[ADMIN] Order ${orderId} status updated successfully`);
 

@@ -2,20 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { reviewAPI } from "@/lib/api";
-import ReviewModal from "@/components/orders/ReviewModal";
+import ReviewModal from "@/components/review/ReviewModal";
+
+interface Product {
+  MASP: string;
+  TENSP: string;
+  IMAGE_URL?: string;
+}
 
 interface Props {
   userId: number;
-  masp: string;
-  productName: string;
+  orderId: number;
+  product: Product;
 }
 
 export default function ReviewItem({
-  userId,
-  masp,
-  productName,
-}: Props) {
-
+    userId,
+    orderId,
+    product,
+}: Props)  {
   const [review, setReview] = useState<any>(null);
   const [open, setOpen] = useState(false);
 
@@ -25,16 +30,20 @@ export default function ReviewItem({
 
   const loadReview = async () => {
     try {
-      const result = await reviewAPI.getUserReview(userId, masp);
-      setReview(result.data);
-    } catch {}
-  };
+        const result = await reviewAPI.getUserReview(
+            userId,
+            product.MASP
+        );
 
+        setReview(result.data);
+    } catch {
+        setReview(null);
+    }
+};
   return (
     <>
       {review ? (
         <div className="mt-3">
-
           <div className="text-yellow-500 text-xl">
             {"★".repeat(review.RATING)}
           </div>
@@ -44,7 +53,6 @@ export default function ReviewItem({
           <span className="text-green-600 font-medium">
             ✓ Đã đánh giá
           </span>
-
         </div>
       ) : (
         <button
@@ -55,11 +63,11 @@ export default function ReviewItem({
         </button>
       )}
 
-      {open && (
+     {open && (
     <ReviewModal
+        product={product}
         userId={userId}
-        masp={masp}
-        productName={productName}
+        orderId={orderId}
         onClose={() => setOpen(false)}
         onSuccess={() => {
             setOpen(false);

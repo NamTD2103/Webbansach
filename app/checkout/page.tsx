@@ -62,6 +62,9 @@ export default function CheckoutPage() {
   const [voucher, setVoucher] = useState<any>(null);
 
   const [applyingVoucher, setApplyingVoucher] = useState(false);
+  const [showMomoQR, setShowMomoQR] = useState(false);
+
+  const [pendingOrder, setPendingOrder] = useState<any>(null);
 
   // Initialize
   useEffect(() => {
@@ -76,7 +79,7 @@ export default function CheckoutPage() {
             userId: 9999,
             username: "guest",
             fullname: "Khách vãng lai",
-            email: "",
+            email: "namvuive2103@gmail.com",
             role: "USER",
           };
         }
@@ -91,12 +94,20 @@ export default function CheckoutPage() {
         });
 
         // Luôn lấy giỏ hàng từ database
-        const cartResult = await cartAPI.getCart(currentUser.userId);
+        const loggedUser = authAPI.getCurrentUser();
 
-        console.log("[Cart]", cartResult);
+        if (loggedUser) {
+          const cartResult = await cartAPI.getCart(loggedUser.userId);
 
-        if (cartResult.success) {
-          setCart(cartResult.data || []);
+          if (cartResult.success) {
+            setCart(cartResult.data || []);
+          }
+        } else {
+          const guestCart = JSON.parse(
+            localStorage.getItem("guestCart") || "[]",
+          );
+
+          setCart(guestCart);
         }
         setLoading(false);
       } catch (error) {
@@ -118,6 +129,9 @@ export default function CheckoutPage() {
   );
   const shippingFee = SHIPPING_FEES[address.province] || 0;
   const total = subtotal + shippingFee - discount;
+  const momoPhone = "0971721305"; // số MoMo của bạn
+
+  const qrUrl = `https://img.vietqr.io/image/MOMO-${momoPhone}-compact2.png?amount=${total}&addInfo=Thanh%20toan%20don%20hang`;
 
   // Validation
   const validateForm = (): boolean => {
@@ -219,7 +233,7 @@ export default function CheckoutPage() {
     try {
       setSubmitting(true);
       const orderData = {
-       userId: user?.userId ?? 9999,
+        userId: user?.userId ?? 9999,
 
         customerInfo: customer,
 
@@ -248,10 +262,11 @@ export default function CheckoutPage() {
       console.log("[Checkout] Submitting order:", orderData);
 
       // Simulate payment processing for online methods
-      if (paymentMethod !== "cod") {
-        // In real app, redirect to payment gateway
-        showToast("success", "Chuyển hướng đến cổng thanh toán...");
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+      if (paymentMethod === "momo") {
+        setPendingOrder(orderData);
+        setShowMomoQR(true);
+        setSubmitting(false);
+        return;
       }
 
       const result = await orderAPI.createOrder(orderData);
@@ -284,20 +299,15 @@ export default function CheckoutPage() {
         }),
       );
 
-      // Xóa giỏ hàng
-      try {
-        try {
-          await cartAPI.clearCart(user?.userId ?? 9999);
+      // Xóa giỏ hàng sau khi đặt hàng
 
-          setCart([]);
-        } catch (error) {
-          console.error("Clear cart error:", error);
-        }
-
-        setCart([]);
-      } catch (error) {
-        console.error("Clear cart error:", error);
+      if (authAPI.getCurrentUser()) {
+        await cartAPI.clearCart(user.userId);
+      } else {
+        localStorage.removeItem("guestCart");
       }
+
+      setCart([]);
 
       showToast("success", "Đặt hàng thành công!");
 
@@ -314,7 +324,45 @@ export default function CheckoutPage() {
       setSubmitting(false);
     }
   };
+  const handleMomoSuccess = async () => {
+    try {
+      setSubmitting(true);
 
+      const result = await orderAPI.createOrder(pendingOrder);
+
+      localStorage.setItem(
+        "lastOrder",
+        JSON.stringify({
+          orderId: result.orderId,
+          customer,
+          address,
+          items: cart,
+          subtotal,
+          shippingFee,
+          discount,
+          total,
+          paymentMethod: "momo",
+          voucher,
+        }),
+      );
+
+      if (authAPI.getCurrentUser()) {
+        await cartAPI.clearCart(user.userId);
+      } else {
+        localStorage.removeItem("guestCart");
+      }
+
+      setCart([]);
+
+      setShowMomoQR(false);
+
+      router.push(`/order-success?id=${result.orderId}`);
+    } catch (err: any) {
+      showToast("error", err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 3000);
@@ -515,7 +563,41 @@ export default function CheckoutPage() {
           </div>
         </div>
       </main>
+      {showMomoQR && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 w-[420px] shadow-xl">
+            <h2 className="text-2xl font-bold text-center">
+              Thanh toán bằng MoMo
+            </h2>
 
+            <img src={qrUrl} alt="MoMo QR" className="w-72 h-72 mx-auto mt-5" />
+
+            <p className="text-center mt-4 text-gray-500">
+              Quét mã QR bằng ứng dụng MoMo
+            </p>
+
+            <p className="text-center text-3xl font-bold text-pink-600 mt-3">
+              {total.toLocaleString("vi-VN")}₫
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 mt-6">
+              <button
+                onClick={() => setShowMomoQR(false)}
+                className="border rounded-lg py-3"
+              >
+                Hủy
+              </button>
+
+              <button
+                onClick={handleMomoSuccess}
+                className="bg-pink-600 text-white rounded-lg py-3"
+              >
+                Đã thanh toán
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Toast Notification */}
       {toast && (
         <div

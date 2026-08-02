@@ -18,11 +18,8 @@ import VoucherTable from "./components/VoucherTable";
 import VoucherModal from "./components/VoucherModal";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { 
-  productAPI, 
-  adminAPI,
-  Product 
-} from "@/lib/api";
+import OrderSection from "./components/orders/OrderSection";
+import { productAPI, adminAPI, Product } from "@/lib/api";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import ProductTable from "./components/ProductTable";
@@ -49,15 +46,15 @@ interface ToastType {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab,setActiveTab]=useState<
-"dashboard" |
-"products" |
-"accounts" |
-"orders" |
-"vouchers" |
-"reviews" |
-"questions"
->("dashboard");
+  const [activeTab, setActiveTab] = useState<
+    | "dashboard"
+    | "products"
+    | "accounts"
+    | "orders"
+    | "vouchers"
+    | "reviews"
+    | "questions"
+  >("dashboard");
 
   // Product states
   const [products, setProducts] = useState<Product[]>([]);
@@ -73,14 +70,13 @@ export default function AdminDashboard() {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [accountModalLoading, setAccountModalLoading] = useState(false);
-// Review states
-const [reviews,setReviews] = useState<any[]>([]);
-const [reviewLoading,setReviewLoading] = useState(false);
+  // Review states
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviewLoading, setReviewLoading] = useState(false);
 
-
-// Question states
-const [questions,setQuestions] = useState<any[]>([]);
-const [questionLoading,setQuestionLoading] = useState(false);
+  // Question states
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [questionLoading, setQuestionLoading] = useState(false);
   // Order states
   const [orders, setOrders] = useState<any[]>([]);
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -203,15 +199,13 @@ const [questionLoading,setQuestionLoading] = useState(false);
 
   // Fetch functions
   useEffect(() => {
-
     fetchProducts();
     fetchUsers();
     fetchOrders();
     fetchVouchers();
     fetchReviews();
     fetchQuestions();
-
-}, []);
+  }, []);
   useEffect(() => {
     if (activeTab === "accounts" && users.length === 0) {
       fetchUsers();
@@ -242,68 +236,46 @@ const [questionLoading,setQuestionLoading] = useState(false);
     }
   };
   const fetchVouchers = async () => {
-  try {
-    setVoucherLoading(true);
+    try {
+      setVoucherLoading(true);
 
-    const res = await adminAPI.getAllVouchers();
+      const res = await adminAPI.getAllVouchers();
 
-    setVouchers(res.data || []);
-  } finally {
-    setVoucherLoading(false);
-  }
-};
-const fetchReviews = async()=>{
+      setVouchers(res.data || []);
+    } finally {
+      setVoucherLoading(false);
+    }
+  };
+  const fetchReviews = async () => {
+    try {
+      setReviewLoading(true);
 
-  try{
+      const res = await adminAPI.getAllReviews();
 
-    setReviewLoading(true);
+      setReviews(res.data || []);
+    } catch (err) {
+      console.error(err);
 
-    const res = await adminAPI.getAllReviews();
+      showToast("Lỗi tải đánh giá", "error");
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+  const fetchQuestions = async () => {
+    try {
+      setQuestionLoading(true);
 
-    setReviews(res.data || []);
+      const res = await adminAPI.getAllQuestions();
 
-  }catch(err){
+      setQuestions(res.data || []);
+    } catch (err) {
+      console.error(err);
 
-    console.error(err);
-
-    showToast(
-      "Lỗi tải đánh giá",
-      "error"
-    );
-
-  }finally{
-
-    setReviewLoading(false);
-
-  }
-
-};
-const fetchQuestions = async()=>{
-
-  try{
-
-    setQuestionLoading(true);
-
-    const res = await adminAPI.getAllQuestions();
-
-    setQuestions(res.data || []);
-
-  }catch(err){
-
-    console.error(err);
-
-    showToast(
-      "Lỗi tải hỏi đáp",
-      "error"
-    );
-
-  }finally{
-
-    setQuestionLoading(false);
-
-  }
-
-};
+      showToast("Lỗi tải hỏi đáp", "error");
+    } finally {
+      setQuestionLoading(false);
+    }
+  };
   const fetchUsers = async () => {
     try {
       setUsersLoading(true);
@@ -624,247 +596,26 @@ const fetchQuestions = async()=>{
 
           {/* Orders Tab */}
           {activeTab === "orders" && (
-            <>
-              {/* Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="text-4xl font-bold text-blue-600">
-                    {orders.length}
-                  </div>
-                  <div className="text-gray-600 mt-2">Tổng đơn hàng</div>
-                </div>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="text-4xl font-bold text-yellow-600">
-                    {orders.filter((o) => o.STATUS === "PENDING").length}
-                  </div>
-                  <div className="text-gray-600 mt-2">Chờ xử lý</div>
-                </div>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="text-4xl font-bold text-orange-600">
-                    {orders.filter((o) => o.STATUS === "PROCESSING").length}
-                  </div>
-                  <div className="text-gray-600 mt-2">Đang xử lý</div>
-                </div>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="text-4xl font-bold text-green-600">
-                    {orders.filter((o) => o.STATUS === "COMPLETED").length}
-                  </div>
-                  <div className="text-gray-600 mt-2">Hoàn thành</div>
-                </div>
-              </div>
-
-              {/* Orders Table */}
-              {ordersLoading ? (
-                <div className="bg-white rounded-lg shadow p-8 text-center">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <p className="mt-4 text-gray-600">Đang tải dữ liệu...</p>
-                </div>
-              ) : (
-                <>
-                  <div className="bg-white rounded-xl shadow p-5 mb-6">
-                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-500">
-                          Tổng doanh thu theo bộ lọc
-                        </p>
-                        <p className="text-3xl font-bold text-green-600">
-                          ₫{totalFilteredAmount.toLocaleString("vi-VN")}
-                        </p>
-                      </div>
-
-                      {(fromDate || toDate) && (
-                        <div className="text-right text-gray-600 text-sm">
-                          <div>Từ: {fromDate || "--/--/----"}</div>
-                          <div>Đến: {toDate || "--/--/----"}</div>
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                      <input
-                        placeholder="Mã đơn hoặc khách hàng..."
-                        value={searchKeyword}
-                        onChange={(e) => setSearchKeyword(e.target.value)}
-                        className="border rounded-lg px-3 py-2"
-                      />
-
-                      <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="border rounded-lg px-3 py-2"
-                      >
-                        <option value="ALL">Tất cả trạng thái</option>
-                        <option value="PENDING">Chờ xử lý</option>
-                        <option value="PROCESSING">Đang xử lý</option>
-                        <option value="COMPLETED">Hoàn thành</option>
-                        <option value="CANCELLED">Đã hủy</option>
-                      </select>
-
-                      <select
-                        value={paymentFilter}
-                        onChange={(e) => setPaymentFilter(e.target.value)}
-                        className="border rounded-lg px-3 py-2"
-                      >
-                        <option value="ALL">Thanh toán</option>
-                        <option value="COD">COD</option>
-                        <option value="ONLINE">Online</option>
-                      </select>
-
-                      <input
-                        type="date"
-                        value={fromDate}
-                        onChange={(e) => setFromDate(e.target.value)}
-                        className="border rounded-lg px-3 py-2"
-                      />
-
-                      <input
-                        type="date"
-                        value={toDate}
-                        onChange={(e) => setToDate(e.target.value)}
-                        className="border rounded-lg px-3 py-2"
-                      />
-
-                      <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value)}
-                        className="border rounded-lg px-3 py-2"
-                      >
-                        <option value="newest">Mới nhất</option>
-                        <option value="oldest">Cũ nhất</option>
-                        <option value="price_high">Giá cao → thấp</option>
-                        <option value="price_low">Giá thấp → cao</option>
-                      </select>
-                      <button
-                        onClick={handleResetFilter}
-                        className="bg-red-500 hover:bg-red-600 text-white rounded-lg px-4 py-2 transition"
-                      >
-                        Reset
-                      </button>
-                    </div>
-                  </div>
-                  <div className="bg-white rounded-lg shadow overflow-hidden">
-                    <table className="min-w-full">
-                      <thead className="bg-gray-100 border-b border-gray-200">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                            Mã ĐH
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                            Khách hàng
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                            Số SP
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                            Tổng tiền
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                            Trạng thái
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                            Ngày tạo
-                          </th>
-                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                            Hành động
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredOrders.length === 0 ? (
-                          <tr>
-                            <td
-                              colSpan={7}
-                              className="text-center py-8 text-gray-500"
-                            >
-                              Không có đơn hàng
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredOrders.map((order) => (
-                            <tr
-                              key={order.ORDER_ID}
-                              className="border-b border-gray-200 hover:bg-gray-50"
-                            >
-                              <td className="px-6 py-3 text-sm text-gray-900">
-                                #{order.ORDER_ID}
-                              </td>
-                              <td className="px-6 py-3 text-sm text-gray-900">
-                                {order.USERNAME}
-                              </td>
-                              <td className="px-6 py-3 text-sm text-gray-900">
-                                {order.ITEM_COUNT || 0}
-                              </td>
-                              <td className="px-6 py-3 text-sm font-semibold text-gray-900">
-                                ₫{order.TOTAL_AMOUNT?.toLocaleString() || 0}
-                              </td>
-                              <td className="px-6 py-3 text-sm">
-                                <span
-                                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                    order.STATUS === "COMPLETED"
-                                      ? "bg-green-100 text-green-800"
-                                      : order.STATUS === "PROCESSING"
-                                        ? "bg-orange-100 text-orange-800"
-                                        : order.STATUS === "PENDING"
-                                          ? "bg-yellow-100 text-yellow-800"
-                                          : "bg-red-100 text-red-800"
-                                  }`}
-                                >
-                                  {order.STATUS === "COMPLETED"
-                                    ? "Hoàn thành"
-                                    : order.STATUS === "PROCESSING"
-                                      ? "Đang xử lý"
-                                      : order.STATUS === "PENDING"
-                                        ? "Chờ xử lý"
-                                        : "Hủy"}
-                                </span>
-                              </td>
-                              <td className="px-6 py-3 text-sm text-gray-600">
-                                {order.ORDER_DATE
-                                  ? new Date(
-                                      order.ORDER_DATE,
-                                    ).toLocaleDateString("vi-VN")
-                                  : "-"}
-                              </td>
-                              <td className="px-6 py-3 text-sm">
-                                <select
-                                  value={order.STATUS}
-                                  onChange={(e) =>
-                                    adminAPI
-                                      .updateOrderStatus(
-                                        order.ORDER_ID,
-                                        e.target.value,
-                                      )
-                                      .then(() => {
-                                        showToast(
-                                          "Cập nhật trạng thái thành công",
-                                          "success",
-                                        );
-                                        fetchOrders();
-                                      })
-                                      .catch((err) =>
-                                        showToast(
-                                          err.message ||
-                                            "Lỗi cập nhật trạng thái",
-                                          "error",
-                                        ),
-                                      )
-                                  }
-                                  className="px-3 py-1 border border-gray-300 rounded text-sm"
-                                >
-                                  <option value="PENDING">Chờ xử lý</option>
-                                  <option value="PROCESSING">Đang xử lý</option>
-                                  <option value="COMPLETED">Hoàn thành</option>
-                                  <option value="CANCELLED">Hủy</option>
-                                </select>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </>
+            <OrderSection
+              orders={filteredOrders}
+              loading={ordersLoading}
+              searchKeyword={searchKeyword}
+              setSearchKeyword={setSearchKeyword}
+              statusFilter={statusFilter}
+              setStatusFilter={setStatusFilter}
+              paymentFilter={paymentFilter}
+              setPaymentFilter={setPaymentFilter}
+              fromDate={fromDate}
+              setFromDate={setFromDate}
+              toDate={toDate}
+              setToDate={setToDate}
+              sortBy={sortBy}
+              setSortBy={setSortBy}
+              totalFilteredAmount={totalFilteredAmount}
+              handleResetFilter={handleResetFilter}
+              fetchOrders={fetchOrders}
+              showToast={showToast}
+            />
           )}
           {activeTab === "vouchers" && (
             <>
@@ -892,69 +643,38 @@ const fetchQuestions = async()=>{
               )}
             </>
           )}
-          {activeTab==="reviews" && (
+          {activeTab === "reviews" && (
+            <>
+              <h2 className="text-2xl font-bold mb-6">
+                Quản lý đánh giá sản phẩm
+              </h2>
 
-<>
+              <ReviewTable
+                reviews={reviews}
+                onDelete={(id) => {
+                  console.log("delete review", id);
+                }}
+              />
+            </>
+          )}
+          {activeTab === "questions" && (
+            <>
+              <h2 className="text-2xl font-bold mb-6">
+                Quản lý hỏi đáp khách hàng
+              </h2>
 
-<h2 className="text-2xl font-bold mb-6">
-Quản lý đánh giá sản phẩm
-</h2>
+              <QuestionTable
+                questions={questions}
+                onAnswer={async (id, text) => {
+                  await adminAPI.answerQuestion(id, text);
 
+                  showToast("Đã trả lời câu hỏi", "success");
 
-<ReviewTable
-
-reviews={reviews}
-
-onDelete={(id)=>{
-
-console.log("delete review",id)
-
-}}
-
-/>
-
-
-</>
-
-)}
-{activeTab==="questions" && (
-
-<>
-
-<h2 className="text-2xl font-bold mb-6">
-Quản lý hỏi đáp khách hàng
-</h2>
-
-
-<QuestionTable
-
-questions={questions}
-
-
-onAnswer={async(id,text)=>{
-
-
-await adminAPI.answerQuestion(id,text);
-
-
-showToast(
-"Đã trả lời câu hỏi",
-"success"
-);
-
-
-fetchQuestions();
-
-
-}}
-
-
-/>
-
-
-</>
-
-)}
+                  fetchQuestions();
+                }}
+              />
+            </>
+          )}
         </main>
 
         {/* Modals */}

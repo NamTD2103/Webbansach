@@ -29,9 +29,14 @@ router.post('/login', async (req, res) => {
     console.log(`[AUTH] Login attempt for user: ${username}`);
 
     const query = `
-      SELECT USER_ID, USERNAME, ROLE 
-      FROM USERS 
-      WHERE USERNAME = :username AND PASSWORD = :password
+      SELECT
+USER_ID,
+USERNAME,
+ROLE,
+LOYALTY_POINTS
+FROM USERS
+WHERE USERNAME=:username
+AND PASSWORD=:password
     `;
 
     const result = await executeQuery(query, { username, password });
@@ -51,11 +56,12 @@ router.post('/login', async (req, res) => {
     res.json({
       success: true,
       message: 'Login successful',
-      user: {
-        userId: user.USER_ID,
-        username: user.USERNAME,
-        role: user.ROLE,
-      },
+      user:{
+    userId:user.USER_ID,
+    username:user.USERNAME,
+    role:user.ROLE,
+    loyaltyPoints:user.LOYALTY_POINTS
+}
     });
   } catch (error) {
     console.error('[AUTH ERROR]', error.message);
@@ -103,8 +109,17 @@ router.post('/register', async (req, res) => {
     const userId = (idResult.rows[0]?.MAX_ID || 0) + 1;
 
     const insertQuery = `
-      INSERT INTO USERS (USER_ID, USERNAME, PASSWORD, ROLE, EMAIL, FULLNAME)
-      VALUES (:userId, :username, :password, :role, :email, :fullname)
+      INSERT INTO USERS
+(
+USER_ID,
+USERNAME,
+PASSWORD,
+ROLE,
+EMAIL,
+FULLNAME,
+LOYALTY_POINTS
+)
+      VALUES (:userId, :username, :password, :role, :email, :fullname, 0)
     `;
 
     await executeUpdate(insertQuery, {
@@ -147,7 +162,7 @@ router.get('/user/:userId', async (req, res) => {
     const { userId } = req.params;
 
     const query = `
-      SELECT USER_ID, USERNAME, ROLE, EMAIL, FULLNAME
+      SELECT USER_ID, USERNAME, ROLE, EMAIL, FULLNAME, LOYALTY_POINTS
       FROM USERS 
       WHERE USER_ID = :userId
     `;
@@ -231,7 +246,7 @@ router.put('/user/:userId', async (req, res) => {
 
     // Get updated user
     const updatedUser = await executeQuery(
-      'SELECT USER_ID, USERNAME, ROLE, EMAIL, FULLNAME FROM USERS WHERE USER_ID = :userId',
+      'SELECT USER_ID, USERNAME, ROLE, EMAIL, FULLNAME, LOYALTY_POINTS FROM USERS WHERE USER_ID = :userId',
       { userId }
     );
 
@@ -249,5 +264,85 @@ router.put('/user/:userId', async (req, res) => {
     });
   }
 });
+// ================= CHANGE PASSWORD =================
+router.put("/change-password/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
 
+    const {
+      oldPassword,
+      newPassword
+    } = req.body;
+
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        message: "Thiếu thông tin mật khẩu"
+      });
+    }
+
+
+    // lấy user hiện tại
+    const userResult = await executeQuery(
+      `
+      SELECT PASSWORD
+      FROM USERS
+      WHERE USER_ID = :userId
+      `,
+      {
+        userId
+      }
+    );
+
+
+    if (!userResult.rows.length) {
+      return res.status(404).json({
+        message:"Không tìm thấy tài khoản"
+      });
+    }
+
+
+    const user = userResult.rows[0];
+
+
+    // kiểm tra mật khẩu cũ
+    if (user.PASSWORD !== oldPassword) {
+      return res.status(400).json({
+        message:"Mật khẩu hiện tại không đúng"
+      });
+    }
+
+
+    // cập nhật mật khẩu mới
+    await executeUpdate(
+      `
+      UPDATE USERS
+      SET PASSWORD = :newPassword
+      WHERE USER_ID = :userId
+      `,
+      {
+        userId,
+        newPassword
+      }
+    );
+
+
+    res.json({
+      success:true,
+      message:"Đổi mật khẩu thành công"
+    });
+
+
+  } catch(error){
+
+    console.error(
+      "[CHANGE PASSWORD ERROR]",
+      error
+    );
+
+    res.status(500).json({
+      message:"Lỗi server"
+    });
+  }
+});
 module.exports = router;

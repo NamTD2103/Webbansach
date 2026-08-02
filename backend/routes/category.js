@@ -11,12 +11,13 @@ router.get('/', async (req, res) => {
     console.log('[CATEGORY] Fetching all categories');
 
     const query = `
-      SELECT 
-        CAT_ID, 
-        CAT_NAME
-      FROM CATEGORY
-      ORDER BY CAT_NAME ASC
-    `;
+  SELECT
+    MADM  AS CAT_ID,
+    TENDM AS CAT_NAME,
+    MALOAI
+  FROM DANHMUC
+  ORDER BY TENDM ASC
+`;
 
     try {
       const result = await executeQuery(query, {});

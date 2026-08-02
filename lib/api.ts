@@ -25,11 +25,15 @@ export interface Product {
   MASP: string;
   TENSP: string;
   GIABAN: number;
-  IMAGE_URL: string;
-  DESCRIPTION: string;
   SOLUONGTON: number;
-  MANCC?: string;  // ✅ Optional
-  CAT_ID?: never;  // ✅ Không dùng nữa
+
+  IMAGE_URL?: string;
+  DESCRIPTION?: string;
+
+  MANCC?: string;
+
+  CAT_ID?: string;      // thêm
+  TYPE?: string;        // nếu có loại sản phẩm
 }
 
 export interface CartItem extends Product {
@@ -62,6 +66,7 @@ export interface User {
   role: string;
   email?: string;
   fullname?: string;
+  loyaltyPoints?: number;
 }
 
 export const productAPI = {
@@ -197,6 +202,7 @@ export const productAPI = {
 };
 
 export const cartAPI = {
+  
   async getCart(userId: number) {
     try {
       const response = await fetchWithTimeout(`${API_BASE_URL}/cart/${userId}`, {
@@ -232,6 +238,30 @@ export const cartAPI = {
     }
     return await response.json();
   },
+  async updateQuantity(userId: number, masp: string, soluong: number) {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/cart/update`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId,
+        masp,
+        soluong,
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Cập nhật giỏ hàng thất bại");
+  }
+
+  return data;
+},
 
   async removeFromCart(userId: number, masp: string) {
     const response = await fetchWithTimeout(
@@ -301,6 +331,22 @@ export const voucherAPI = {
    }
 
 }
+export const paymentAPI = {
+  async createMomoPayment(data: any) {
+    const response = await fetch(
+      "http://localhost:5000/api/payment/momo",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      }
+    );
+
+    return await response.json();
+  },
+};
 export const orderAPI = {
   async createOrder(orderData: any) {
   const response = await fetchWithTimeout(
@@ -393,41 +439,7 @@ async reorder(orderId: number) {
   return await response.json();
 },
 
-async reviewProduct(data:{
-    userId:number;
-    masp:string;
-    rating:number;
-    comment:string;
-}){
 
-const response = await fetchWithTimeout(
-`${API_BASE_URL}/review`,
-{
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},
-body:JSON.stringify(data)
-}
-);
-
-
-if(!response.ok){
-
-const error =
-await response.json()
-.catch(()=>({
-message:"Đánh giá thất bại"
-}));
-
-throw new Error(error.message);
-
-}
-
-
-return await response.json();
-
-},
 async trackOrder(orderId:number){
 
 const response=await fetchWithTimeout(
@@ -475,95 +487,148 @@ return await response.json();
 };
 
 export const authAPI = {
-  async login(username: string, password: string) {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
+
+  login: async (username: string, password: string) => {
+  const res = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      username,
+      password,
+    }),
+  });
+
+  const result = await res.json();
+
+  if (!res.ok || !result.success) {
+    throw new Error(result.message || "Đăng nhập thất bại");
+  }
+
+  // Lưu user
+  localStorage.setItem(
+    "user",
+    JSON.stringify(result.user)
+  );
+
+  return result;
+},
+
+  register: async (
+    username: string,
+    password: string,
+    email?: string,
+    role?: string
+  ) => {
+
+    const res = await fetch(`${API_BASE_URL}/auth/register`, {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+      },
+      body:JSON.stringify({
+        username,
+        password,
+        email,
+        role,
+      }),
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Login failed');
-    }
-
-    const data = await response.json();
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('user', JSON.stringify(data.user));
-    }
-    return data;
+    return res.json();
   },
 
-  async register(username: string, password: string, email?: string, role: string = 'USER') {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, email, role }),
-    });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Registration failed');
-    }
+  getCurrentUser() {
+    if(typeof window === "undefined")
+      return null;
 
-    const data = await response.json();
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('user', JSON.stringify(data.user));
-    }
-    return data;
+    const user = localStorage.getItem("user");
+
+    return user 
+      ? JSON.parse(user)
+      : null;
   },
 
-  getCurrentUser(): User | null {
-    if (typeof window === 'undefined') return null;
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+
+  logout(){
+    localStorage.removeItem("user");
   },
 
-  logout() {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('user');
+
+  getUser: async(userId:number)=>{
+
+    const res = await fetch(
+      `${API_BASE_URL}/auth/user/${userId}`
+    );
+
+    return res.json();
+
+  },
+
+
+  updateProfile: async(
+    userId:number,
+    data:{
+      email?:string;
+      fullname?:string;
     }
-  },
+  )=>{
 
-  async getUser(userId: number) {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/user/${userId}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!response.ok) throw new Error('Failed to fetch user profile');
-    return await response.json();
-  },
-
-  async updateProfile(userId: number, data: { email?: string; fullname?: string }) {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/user/${userId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Failed to update profile' }));
-      throw new Error(error.message || 'Failed to update profile');
-    }
-
-    const result = await response.json();
-    
-    // Update localStorage with new user data
-    if (typeof window !== 'undefined' && result.data) {
-      const currentUser = this.getCurrentUser();
-      if (currentUser) {
-        const updatedUser = {
-          ...currentUser,
-          email: result.data.EMAIL || currentUser.email,
-          fullname: result.data.FULLNAME || currentUser.fullname,
-        };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
+    const res = await fetch(
+      `${API_BASE_URL}/auth/profile/${userId}`,
+      {
+        method:"PUT",
+        headers:{
+          "Content-Type":"application/json",
+        },
+        body:JSON.stringify(data),
       }
+    );
+
+    return res.json();
+
+  },
+
+
+  // ===============================
+  // CHANGE PASSWORD
+  // ===============================
+  changePassword: async(
+    userId:number,
+    data:{
+      oldPassword:string;
+      newPassword:string;
     }
+  )=>{
+
+    const res = await fetch(
+      `${API_BASE_URL}/auth/change-password/${userId}`,
+      {
+        method:"PUT",
+        headers:{
+          "Content-Type":"application/json",
+        },
+        body:JSON.stringify(data),
+      }
+    );
+
+
+    const result = await res.json();
+
+
+    if(!res.ok){
+      throw new Error(
+        result.message || "Đổi mật khẩu thất bại"
+      );
+    }
+
 
     return result;
+
   },
+
+
 };
 
 export const adminAPI = {
@@ -635,18 +700,38 @@ export const adminAPI = {
   },
 
   async getOrderDetail(orderId: number) {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/admin/orders/${orderId}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Failed to fetch order' }));
-      throw new Error(error.message || 'Failed to fetch order details');
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/order/${orderId}`,
+      {
+        method: "GET",
+        headers:{
+          "Content-Type":"application/json"
+        }
+      }
+    );
+
+
+    if(!response.ok){
+
+      const error =
+        await response
+        .json()
+        .catch(()=>({
+          message:"Không lấy được chi tiết đơn hàng"
+        }));
+
+      throw new Error(error.message);
+
     }
 
-    return await response.json();
-  },
+
+    const result = await response.json();
+
+
+    return result.data;
+
+},
 
   async updateOrderStatus(orderId: number, status: string) {
     const response = await fetchWithTimeout(`${API_BASE_URL}/admin/orders/${orderId}`, {
@@ -685,34 +770,27 @@ async getAllVouchers() {
 
   return await response.json();
 },
-async hideReview(reviewId:number){
+async toggleReviewStatus(reviewId: number, status: string) {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/review/admin/${reviewId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        status,
+      }),
+    }
+  );
 
-const response = await fetchWithTimeout(
-`${API_BASE_URL}/review/admin/${reviewId}`,
-{
-method:"PUT",
-headers:{
-"Content-Type":"application/json"
-}
-}
-);
+  const result = await response.json();
 
+  if (!response.ok) {
+    throw new Error(result.message || "Cập nhật trạng thái thất bại");
+  }
 
-if(!response.ok){
-
-const error =
-await response.json()
-.catch(()=>({
-message:"Ẩn đánh giá thất bại"
-}));
-
-throw new Error(error.message);
-
-}
-
-
-return await response.json();
-
+  return result;
 },
 async getVoucher(id: number) {
   const response = await fetchWithTimeout(
@@ -897,13 +975,19 @@ async answerQuestion(
 };
 export const reviewAPI = {
 
-  // User gửi đánh giá
+
+  // ==========================
+  // USER CREATE REVIEW
+  // ==========================
+
   async createReview(data:{
-    userId:number;
-    masp:string;
-    rating:number;
-    comment:string;
-  }){
+  userId:number;
+  orderId:number;
+  masp:string;
+  rating:number;
+  comment:string;
+}){
+
 
     const response = await fetchWithTimeout(
       `${API_BASE_URL}/review`,
@@ -917,42 +1001,31 @@ export const reviewAPI = {
     );
 
 
+    const result = await response.json();
+
+
     if(!response.ok){
 
-      const error = await response
-        .json()
-        .catch(()=>({
-          message:"Đánh giá thất bại"
-        }));
-
-      throw new Error(error.message);
+      throw new Error(
+        result.message || "Đánh giá thất bại"
+      );
 
     }
 
 
-    return await response.json();
+    return result;
 
   },
 
-async getUserReview(
-    userId:number,
-    masp:string
-){
 
-const response = await fetchWithTimeout(
-`${API_BASE_URL}/review/user/${userId}/${masp}`
-);
 
-if(!response.ok){
-throw new Error("Không lấy được đánh giá");
-}
+  // ==========================
+  // GET REVIEW PRODUCT
+  // ==========================
 
-return await response.json();
 
-},
-
-  // Lấy đánh giá của sản phẩm
   async getProductReviews(masp:string){
+
 
     const response = await fetchWithTimeout(
       `${API_BASE_URL}/review/product/${masp}`,
@@ -965,21 +1038,67 @@ return await response.json();
     );
 
 
+    const result = await response.json();
+
+
     if(!response.ok){
 
       throw new Error(
+        result.message || 
         "Không lấy được đánh giá"
       );
 
     }
 
 
-    return await response.json();
+    return result;
 
-  }
+  },
+
+
+
+
+  // ==========================
+  // CHECK USER REVIEW
+  // ==========================
+
+
+  async getUserReview(
+    userId:number,
+    masp:string
+  ){
+
+
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/review/user/${userId}/${masp}`,
+      {
+        method:"GET",
+        headers:{
+          "Content-Type":"application/json"
+        }
+      }
+    );
+
+
+    const result = await response.json();
+
+
+    if(!response.ok){
+
+      throw new Error(
+        result.message ||
+        "Không lấy được đánh giá"
+      );
+
+    }
+
+
+    return result;
+
+  },
+
 
 };
-
 
 export const categoryAPI = {
   async getAll() {
@@ -1002,7 +1121,228 @@ export const categoryAPI = {
     }
   },
 };
+export const questionAPI = {
 
+  // User gửi câu hỏi
+  async createQuestion(data: {
+    userId: number;
+    masp: string;
+    question: string;
+  }) {
+
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/question`,
+      {
+        method: "POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body: JSON.stringify(data)
+      }
+    );
+
+
+    const result = await response.json();
+
+
+    if(!response.ok){
+      throw new Error(
+        result.message || "Gửi câu hỏi thất bại"
+      );
+    }
+
+
+    return result;
+  },
+
+
+  // Lấy câu hỏi theo sản phẩm
+  async getProductQuestions(masp:string){
+
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/question/${masp}`,
+      {
+        method:"GET",
+        headers:{
+          "Content-Type":"application/json"
+        }
+      }
+    );
+
+
+    const result = await response.json();
+
+
+    if(!response.ok){
+      throw new Error(
+        result.message || "Không lấy được câu hỏi"
+      );
+    }
+
+
+    return result;
+  },
+
+
+  // Admin lấy tất cả câu hỏi
+  async getAllQuestions(){
+
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/question/admin`,
+      {
+        method:"GET",
+        headers:{
+          "Content-Type":"application/json"
+        }
+      }
+    );
+
+
+    const result = await response.json();
+
+
+    if(!response.ok){
+      throw new Error(
+        result.message || "Không lấy được câu hỏi"
+      );
+    }
+
+
+    return result;
+  },
+
+
+  // Admin trả lời
+  async answerQuestion(
+    id:number,
+    answer:string
+  ){
+
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/question/admin/${id}`,
+      {
+        method:"PUT",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          answer
+        })
+      }
+    );
+
+
+    const result = await response.json();
+
+
+    if(!response.ok){
+      throw new Error(
+        result.message || "Trả lời thất bại"
+      );
+    }
+
+
+    return result;
+  }
+
+};
+export const chatAPI = {
+
+  async getMessages(room: string) {
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/chat/${room}`
+    );
+
+    if (!response.ok) {
+      throw new Error("Không lấy được tin nhắn");
+    }
+
+    return await response.json();
+  },
+
+  async sendMessage(data: {
+    room: string;
+    sender: number;
+    receiver: number;
+    message: string;
+  }) {
+
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/chat/send`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Không gửi được tin nhắn");
+    }
+
+    return await response.json();
+  },
+  async getRooms() {
+
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/chat/rooms/list`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Không lấy được danh sách phòng");
+  }
+
+  return await response.json();
+},
+  
+
+};
+export const loyaltyAPI = {
+
+  async getPoints(userId: number) {
+
+    const response = await fetch(
+      `${API_BASE_URL}/loyalty/${userId}`
+    );
+
+    return response.json();
+  },
+
+  async redeem(userId: number, point: number) {
+
+    const response = await fetch(
+      `${API_BASE_URL}/loyalty/redeem`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+        },
+
+        body: JSON.stringify({
+          userId,
+          point,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message);
+    }
+
+    return data;
+  },
+};
 export default {
     productAPI,
     cartAPI,
@@ -1011,5 +1351,8 @@ export default {
     adminAPI,
     categoryAPI,
     voucherAPI,
-    reviewAPI
-}
+    reviewAPI,
+    questionAPI,
+    chatAPI,
+    loyaltyAPI
+};

@@ -2,7 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
-
+const http = require("http");
+const { Server } = require("socket.io");
 const { initializePool, closePool } = require('./config/db');
 const { errorHandler, requestLogger } = require('./middleware');
 
@@ -22,10 +23,16 @@ const recommendationRoutes = require('./routes/recommendations');
 const profileRoutes = require('./routes/profile');
 const questionRoutes = require("./routes/question");
 const reviewRoutes=require("./routes/review");
-
+const chatRoutes = require("./routes/chat");
+const loyaltyRoutes = require("./routes/loyalty");
+// const adminOrderRoutes =require("./routes/admin/orders");
 // Initialize Express app
+
 const app = express();
+const server = http.createServer(app);
+
 const PORT = process.env.PORT || 5000;
+
 
 
 
@@ -65,7 +72,37 @@ app.use(cors({
 }));
 
 app.use(requestLogger);
+const io = new Server(server, {
+  cors: {
+    origin: [
+      "http://localhost:3000",
+      "http://localhost:3001",
+    ],
+    credentials: true,
+  },
+});
 
+app.set("io", io);
+io.on("connection", (socket) => {
+  console.log("🟢 Client connected:", socket.id);
+
+  socket.on("join", (room) => {
+    socket.join(room);
+    console.log(`${socket.id} joined ${room}`);
+  });
+
+  socket.on("sendMessage", (data) => {
+    io.to(data.room).emit("newMessage", data);
+  });
+
+  socket.on("typing", (data) => {
+    socket.to(data.room).emit("typing", data);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("🔴 Client disconnected");
+  });
+});
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
@@ -89,12 +126,15 @@ app.use('/api/recommendations', recommendationRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/voucher', voucherRoutes);
 app.use("/api/review",reviewRoutes);
-
+// app.use("/api/admin/orders",adminOrderRoutes);
 app.use("/api/admin/reviews",reviewRoutes);
 app.use("/api/question", questionRoutes);
 
 app.use("/api/admin/questions", questionRoutes);
-app.use('/api/voucher', voucherRoutes);
+
+app.use("/api/chat", chatRoutes);
+
+app.use("/api/loyalty", loyaltyRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -116,7 +156,7 @@ async function startServer() {
     await initializePool();
 
     // Start listening
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`\n╔══════════════════════════════════╗`);
       console.log(`║  🚀 Server running on port ${PORT}    ║`);
       console.log(`║  http://localhost:${PORT}              ║`);
